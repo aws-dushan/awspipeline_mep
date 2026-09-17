@@ -179,14 +179,30 @@ try {
   await run(app, `docker exec ${EDGE_CONTAINER} nginx -s reload`)
 
   step('verify')
-  await run(
-    app,
-    `for i in $(seq 1 30); do ` +
-      `code=$(curl -sk -o /dev/null -w '%{http_code}' ${PUBLIC_URL}/login); ` +
-      `[ "$code" = "200" ] && { echo "login page: $code"; break; }; sleep 2; done; ` +
-      `echo "csrf: $(curl -sk -o /dev/null -w '%{http_code}' ${PUBLIC_URL}/api/auth/csrf)"; ` +
-      `echo "container: $(docker inspect -f '{{.State.Status}}' mepplms)"`,
-  )
+  /*
+   * Checked from the server's own vantage point, which is not the public one.
+   * The server cannot reach its own public address - the name resolves to the
+   * external IP and nothing routes it back in - so curling PUBLIC_URL here
+   * hangs until curl gives up, thirty times over. The browser check at the end
+   * of `npm run release` is what covers the public path; this proves the two
+   * hops the server can actually see.
+   */
+  const verify =
+    // 1. The app answers at the prefix, inside its own container.
+    `echo "app:  $(docker exec mepplms node -e ` +
+    `"fetch('http://127.0.0.1:3000${BASE_PATH}/login').then(r=>console.log(r.status)).catch(e=>console.log(e.code||'unreachable'))")"; ` +
+    // 2. The edge routes that prefix to it. The published address comes from
+    //    docker rather than a literal, so no internal addressing is written
+    //    down here, and the Host header is what the certificate expects.
+    `edge=$(docker port ${EDGE_CONTAINER} 1000 | head -1); ` +
+    `echo "edge: $(curl -sk -m 10 -o /dev/null -w '%{http_code}' ` +
+    `-H 'Host: ${new URL(PUBLIC_URL).hostname}' "https://$edge${BASE_PATH}/login")"; ` +
+    `echo "container: $(docker inspect -f '{{.State.Status}} {{.State.Health.Status}}' mepplms)"`
+
+  const checked = await run(app, verify)
+  if (!/edge: 200/.test(checked.stdout)) {
+    throw new Error('the edge did not serve the application after the reload')
+  }
 
   console.log(`\nDeployed: ${PUBLIC_URL}/login`)
 } finally {

@@ -2,9 +2,10 @@
 
 import * as React from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowRight, Building2, LogOut, Plus, Settings2 } from 'lucide-react'
+import { ArrowRight, Building2, LogOut, Settings2 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -182,34 +183,6 @@ export function CompanySelector({
                 </span>
               </motion.button>
             ))}
-
-            {isAdmin ? (
-              <motion.a
-                href="/admin/companies"
-                variants={{
-                  hidden: { opacity: 0, y: 18, scale: 0.97 },
-                  visible: {
-                    opacity: 1,
-                    y: 0,
-                    scale: 1,
-                    transition: { duration: 0.45, ease: EASE },
-                  },
-                }}
-                whileHover={{ y: -4 }}
-                className={cn(
-                  'group grid place-items-center rounded-xl border border-dashed border-ink-200 bg-white/60 p-6',
-                  'transition-colors duration-200 hover:border-brand-300 hover:bg-brand-50/40',
-                )}
-              >
-                <span className="flex flex-col items-center gap-2 text-center">
-                  <span className="grid size-10 place-items-center rounded-full bg-ink-100 text-ink-500 transition-colors group-hover:bg-brand-100 group-hover:text-brand-700">
-                    <Plus className="size-4" />
-                  </span>
-                  <span className="text-[13.5px] font-medium text-ink-600">Add a company</span>
-                  <span className="text-[12px] text-ink-400">Manage in admin settings</span>
-                </span>
-              </motion.a>
-            ) : null}
           </motion.div>
         )}
       </div>
@@ -240,10 +213,10 @@ function EmptyCompanies({ isAdmin }: { isAdmin: boolean }) {
       </div>
       {isAdmin ? (
         <Button asChild variant="primary" size="lg">
-          <a href="/admin/companies">
+          <Link href="/admin/companies">
             <Settings2 />
             Create the first company
-          </a>
+          </Link>
         </Button>
       ) : (
         <Button variant="secondary" asChild>
