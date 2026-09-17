@@ -93,6 +93,14 @@ export const companySchema = z.object({
   /** Job numbers start here for a brand-new company. */
   jobNoStart: z.coerce.number().int().min(1).max(9_999_999).default(1000),
   jobNoPrefix: z.string().trim().max(8).default(''),
+  /** Country or branch code appended after an underscore, e.g. DXB. */
+  jobNoSuffix: z
+    .string()
+    .trim()
+    .max(8, 'Use 8 characters or fewer')
+    .regex(/^[A-Za-z0-9-]*$/, 'Letters, numbers and hyphens only')
+    .transform((value) => value.toUpperCase())
+    .default(''),
 })
 
 export const createCompanySchema = companySchema

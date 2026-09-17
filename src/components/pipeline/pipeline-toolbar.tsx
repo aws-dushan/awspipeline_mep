@@ -271,14 +271,6 @@ function describeActiveFilters(
     return ''
   }
 
-  if (filters.serialNo) chips.push({ column: 'serialNo', label: 'S.No', value: filters.serialNo })
-  else if (filters.serialNoMin !== undefined || filters.serialNoMax !== undefined) {
-    chips.push({
-      column: 'serialNo',
-      label: 'S.No',
-      value: range(filters.serialNoMin, filters.serialNoMax),
-    })
-  }
 
   if (filters.jobNo) chips.push({ column: 'jobNo', label: 'Job No', value: filters.jobNo })
 

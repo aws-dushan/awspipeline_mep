@@ -75,6 +75,24 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Asserted in both directions - the browser check fails if an agreed field
       is unmarked *or* if an optional one is marked mandatory
 
+## Job numbers and inline editing
+
+- [x] S.No removed from the grid, the column filters and the Excel export. It
+      stays in the database as the ordering key - the only strictly sequential
+      value a request carries, and what "newest first" means now that job
+      numbers sort as text
+- [x] Job numbers read `<prefix><number>_<suffix>`, e.g. `J1000_DXB`. Prefix and
+      country code are per-company settings, with a live preview of what the
+      next request will carry
+- [x] Existing job numbers are left as they were issued; the format applies to
+      numbers allocated from here on
+- [x] Double-clicking a row edits it in place. Adding still uses the panel
+- [x] Inline editing goes through the same server action and the same schema as
+      the panel, so the rules cannot differ between them
+- [x] Job No has no inline editor - it is issued by the server and must stay
+      unique within a company
+- [x] Enter saves, Escape cancels, and an open picker gets first refusal on both
+
 ## Live data
 
 - [x] Server-Sent Events channel per company, authorised like any other read

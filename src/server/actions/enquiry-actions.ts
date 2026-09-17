@@ -16,6 +16,7 @@ import { getEnquiryById } from '@/lib/database/enquiry-repository'
 import { prisma } from '@/lib/database/prisma'
 import { formatCurrency, parseCalendarDate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
+import { formatJobNo } from '@/lib/pipeline/job-number'
 import { publish, publishPipelineChange } from '@/lib/realtime/event-bus'
 import {
   createCustomerSchema,
@@ -48,13 +49,16 @@ async function allocateNumbers(tx: Prisma.TransactionClient, companyId: string) 
   const counter = await tx.companyCounter.update({
     where: { companyId },
     data: { nextSerialNo: { increment: 1 }, nextJobNo: { increment: 1 } },
-    select: { nextSerialNo: true, nextJobNo: true, jobNoPrefix: true },
+    select: { nextSerialNo: true, nextJobNo: true, jobNoPrefix: true, jobNoSuffix: true },
   })
   // `update` returns the post-increment values, so the allocated numbers are
   // the ones just below.
   const serialNo = counter.nextSerialNo - 1
   const jobNumber = counter.nextJobNo - 1
-  return { serialNo, jobNo: `${counter.jobNoPrefix}${jobNumber}` }
+  return {
+    serialNo,
+    jobNo: formatJobNo(counter.jobNoPrefix, jobNumber, counter.jobNoSuffix),
+  }
 }
 
 function toPersistable(data: EnquiryFormValues, customer: { id: string; name: string }) {

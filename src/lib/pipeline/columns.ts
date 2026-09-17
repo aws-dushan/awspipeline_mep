@@ -9,7 +9,6 @@ import type { DropdownTypeKey } from '@prisma/client'
  */
 
 export type ColumnFilterKind =
-  | 'number-range'
   | 'text'
   | 'date-range'
   | 'user-multi'
@@ -17,7 +16,6 @@ export type ColumnFilterKind =
   | 'currency-range'
 
 export type PipelineColumnKey =
-  | 'serialNo'
   | 'jobNo'
   | 'enquiryDate'
   | 'salesResponsible'
@@ -57,17 +55,6 @@ export type PipelineColumn = {
 }
 
 export const PIPELINE_COLUMNS: readonly PipelineColumn[] = [
-  {
-    key: 'serialNo',
-    label: 'S.No',
-    exportLabel: 'S.No',
-    filter: 'number-range',
-    width: 100,
-    minWidth: 92,
-    excelWidth: 8,
-    align: 'right',
-    pinned: true,
-  },
   {
     key: 'jobNo',
     label: 'JOB NO',

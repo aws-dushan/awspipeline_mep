@@ -106,7 +106,6 @@ export async function generatePipelineWorkbook(context: ExportContext): Promise<
 }
 
 type ExcelRowValues = {
-  serialNo: number
   jobNo: string
   enquiryDate: Date | null
   salesResponsible: string
@@ -138,7 +137,6 @@ function toExcelDate(iso: string | null): Date | null {
 
 function toExcelRow(enquiry: PipelineRow): ExcelRowValues {
   return {
-    serialNo: enquiry.serialNo,
     jobNo: enquiry.jobNo,
     enquiryDate: toExcelDate(enquiry.enquiryDate),
     salesResponsible: enquiry.salesResponsible?.name ?? '',
@@ -195,7 +193,6 @@ function styleDataRow(
   }
   probability.alignment = { vertical: 'middle', horizontal: 'center' }
 
-  row.getCell('serialNo').alignment = { vertical: 'middle', horizontal: 'right' }
 }
 
 function applyColumnAlignment(sheet: ExcelJS.Worksheet) {
@@ -256,8 +253,6 @@ function describeFilters(context: ExportContext): [string, string][] {
   }
 
   if (filters.q) described.push(['Search', filters.q])
-  if (filters.serialNo) described.push(['S.No', filters.serialNo])
-  range('S.No range', filters.serialNoMin, filters.serialNoMax)
   if (filters.jobNo) described.push(['Job No', filters.jobNo])
   range('Enquiry Date', filters.enquiryDateFrom, filters.enquiryDateTo)
   if (filters.customerName) described.push(['Customer Name', filters.customerName])

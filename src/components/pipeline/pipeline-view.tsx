@@ -251,6 +251,38 @@ export function PipelineView({
     }
   }
 
+  /**
+   * Save a row edited in the grid.
+   *
+   * Deliberately the same server action and the same schema as the drawer -
+   * editing in place changes where the fields are, not what may be saved. Only
+   * the reporting differs: there is no form to show a summary banner in, so a
+   * failure is a toast and the offending cells are marked.
+   */
+  async function handleInlineSave(row: PipelineRow, values: EnquiryFormInput) {
+    const result = await updateEnquiryAction({
+      companyId: company.id,
+      enquiryId: row.id,
+      data: values,
+    })
+
+    if (!result.ok) {
+      toast.error('Could not save the changes', { description: result.error })
+      return { ok: false, fieldErrors: result.fieldErrors }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['pipeline', company.id] })
+
+    const changeCount = 'changeCount' in result.data ? result.data.changeCount : 0
+    if (changeCount > 0) {
+      toast.success('Request updated', {
+        description: `${changeCount} ${changeCount === 1 ? 'field' : 'fields'} recorded in the audit history.`,
+      })
+      highlight(row.id)
+    }
+    return { ok: true }
+  }
+
   async function handleSubmit(values: EnquiryFormInput) {
     const result = editing
       ? await updateEnquiryAction({ companyId: company.id, enquiryId: editing.id, data: values })
@@ -397,6 +429,7 @@ export function PipelineView({
           )
         }
         canRequestDelete={viewer.canRequestDelete}
+        onInlineSave={handleInlineSave}
         onEdit={(row) => {
           setEditing(row)
           setDrawerOpen(true)

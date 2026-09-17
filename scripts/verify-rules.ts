@@ -24,6 +24,7 @@ import {
 } from '../src/lib/filters/enquiry-filters'
 import { applyAutomationRules, DEFAULT_RULE_PAIRS } from '../src/lib/pipeline/automation'
 import { PIPELINE_COLUMNS } from '../src/lib/pipeline/columns'
+import { formatJobNo } from '../src/lib/pipeline/job-number'
 
 const prisma = new PrismaClient()
 
@@ -316,16 +317,20 @@ async function main() {
     const gridRows = await prisma.enquiry.count({ where: gridWhere })
     check('Export row count matches the filtered grid', exportRows === gridRows && exportRows === 1)
 
-    check('Export column order matches the 17 pipeline columns', PIPELINE_COLUMNS.length === 17)
+    check('Export carries every pipeline column', PIPELINE_COLUMNS.length === 16)
     check(
       'Export headers are in the agreed order',
       PIPELINE_COLUMNS.map((c) => c.exportLabel).join('|') ===
         [
-          'S.No', 'JOB NO', 'Enquiry Date', 'Sales Responsible', 'Customer Name',
+          'JOB NO', 'Enquiry Date', 'Sales Responsible', 'Customer Name',
           'Project Name', 'Status', 'Location', 'Material', 'Enquiry Details',
           'Quote Value', 'Probability', 'Exp Order Date', 'Exp Billing Date',
           'Email', 'Phone Number', 'Remarks',
         ].join('|'),
+    )
+    check(
+      'The export has no S.No column',
+      !PIPELINE_COLUMNS.some((column) => /^s\.?\s*no$/i.test(column.exportLabel)),
     )
 
     // ==========================================================================
@@ -459,7 +464,16 @@ async function main() {
     check('The same Job No may exist in a different company', sameJobOtherCompany)
 
     // ==========================================================================
-    section('9. Mandatory fields')
+    section('9. Job numbers')
+  // ==========================================================================
+  check("Prefix and country code compose as J1000_DXB", formatJobNo('J', 1000, 'DXB') === 'J1000_DXB')
+  check('A company with neither gets a bare number', formatJobNo('', 1000, '') === '1000')
+  check('A prefix alone leaves no trailing separator', formatJobNo('J', 1000, '') === 'J1000')
+  check('A country code alone still gets its separator', formatJobNo('', 1000, 'DXB') === '1000_DXB')
+  check('Stray whitespace never reaches a job number', formatJobNo(' J ', 1000, ' DXB ') === 'J1000_DXB')
+
+  // ==========================================================================
+  section('10. Mandatory fields')
     // ==========================================================================
     /*
      * Ten fields are mandatory - S.No, Job No, Sales Responsible, Customer Name,

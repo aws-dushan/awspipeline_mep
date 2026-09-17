@@ -26,6 +26,7 @@ import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/primitives'
 import { formatNumber } from '@/lib/format'
+import { formatJobNo } from '@/lib/pipeline/job-number'
 import { companySchema } from '@/lib/validation/admin'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import { createCompanyAction, updateCompanyAction } from '@/server/actions/admin-actions'
@@ -37,6 +38,7 @@ export type AdminCompany = {
   currency: string
   isActive: boolean
   jobNoPrefix: string
+  jobNoSuffix: string
   nextJobNo: number
   userCount: number
   enquiryCount: number
@@ -136,7 +138,10 @@ export function CompanyManager({ companies }: { companies: AdminCompany[] }) {
 
               <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-ink-100 pt-3.5">
                 <Stat label="Currency" value={company.currency} />
-                <Stat label="Next job" value={`${company.jobNoPrefix}${company.nextJobNo}`} />
+                <Stat
+                  label="Next job"
+                  value={formatJobNo(company.jobNoPrefix, company.nextJobNo, company.jobNoSuffix)}
+                />
               </dl>
 
               <div className="mt-4 flex items-center gap-4 text-[12px] text-ink-500">
@@ -240,6 +245,7 @@ function CompanyDialog({
       isActive: company?.isActive ?? true,
       jobNoStart: company?.nextJobNo ?? 1000,
       jobNoPrefix: company?.jobNoPrefix ?? '',
+      jobNoSuffix: company?.jobNoSuffix ?? '',
     }),
     [company],
   )
@@ -250,11 +256,18 @@ function CompanyDialog({
     control,
     reset,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema) as never,
     defaultValues,
   })
+
+  const jobNoPreview = {
+    prefix: String(watch('jobNoPrefix') ?? ''),
+    start: String(watch('jobNoStart') ?? ''),
+    suffix: String(watch('jobNoSuffix') ?? '').toUpperCase(),
+  }
 
   React.useEffect(() => {
     if (open) reset(defaultValues)
@@ -317,11 +330,11 @@ function CompanyDialog({
               </Field>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <Field
                 label="Job number prefix"
                 error={errors.jobNoPrefix?.message}
-                hint="Optional, e.g. AD-"
+                hint="Optional, e.g. J"
               >
                 <Input {...register('jobNoPrefix')} />
               </Field>
@@ -339,7 +352,32 @@ function CompanyDialog({
                   {...register('jobNoStart')}
                 />
               </Field>
+
+              <Field
+                label="Country code"
+                error={errors.jobNoSuffix?.message}
+                hint="Optional, e.g. DXB"
+              >
+                <Input
+                  className="uppercase"
+                  invalid={Boolean(errors.jobNoSuffix)}
+                  {...register('jobNoSuffix')}
+                />
+              </Field>
             </div>
+
+            {/*
+              What the next request will actually carry. The three fields above
+              combine into one identifier, and an administrator should not have
+              to assemble it in their head to find out whether they have it
+              right.
+            */}
+            <p className="-mt-1 text-[12px] text-ink-500">
+              Next job number:{' '}
+              <span className="tabular font-medium text-ink-800">
+                {formatJobNo(jobNoPreview.prefix, jobNoPreview.start, jobNoPreview.suffix)}
+              </span>
+            </p>
 
             <Controller
               control={control}

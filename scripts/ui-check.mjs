@@ -151,7 +151,84 @@ async function main() {
     const headers = await page.$$eval('table thead th', (els) =>
       els.map((el) => el.textContent?.trim()).filter(Boolean),
     )
-    if (headers.length < 17) throw new Error(`only ${headers.length} headers rendered`)
+    // The business columns, in order, after the pinned actions column. Named
+    // rather than counted: a count still passes when one column is swapped
+    // for another.
+    const EXPECTED = [
+      'JOB NO',
+      'Enquiry Date',
+      'SALES RESPONSIBLE',
+      'Customer Name',
+      'Project Name',
+      'STATUS',
+      'LOCATION',
+      'MATERIAL',
+      'ENQUIRY DETAILS',
+      'Quote Value',
+      'PROBABILITY',
+      'Exp Order Date',
+      'Exp Billing Date',
+      'EMAIL',
+      'PHONE NUMBER',
+      'REMARKS',
+    ]
+    // Case-insensitive: the headers are uppercased in CSS, not in the text.
+    const normalise = (list) => list.map((header) => header.toLowerCase()).join('|')
+    const actual = headers.slice(1)
+    if (normalise(actual) !== normalise(EXPECTED)) {
+      throw new Error(`columns are ${actual.join(', ')}`)
+    }
+    if (headers.some((header) => /s\.?\s*no/i.test(header))) {
+      throw new Error('the S.No column is still present')
+    }
+  })
+
+  /*
+   * Editing happens in the row, not in a panel. The panel is still how a
+   * request is added, so this must not quietly become a drawer again.
+   */
+  await step('double-click edits the row in place', async () => {
+    const row = page.locator('table tbody tr').first()
+    await row.dblclick()
+    await page.waitForSelector('button[aria-label="Save changes"]', { timeout: 8000 })
+    await page.waitForTimeout(400)
+
+    if (await page.locator('[role="dialog"]').count()) {
+      throw new Error('a dialog opened instead of editing in place')
+    }
+    const editors = await row.locator('input, [role="combobox"]').count()
+    if (editors < 10) throw new Error(`only ${editors} editors appeared in the row`)
+
+    // Job No is issued by the server, so it has no editor even while editing.
+    const jobNoCell = row.locator('td').nth(1)
+    if (await jobNoCell.locator('input').count()) {
+      throw new Error('Job No is editable and should not be')
+    }
+
+    const project = row.locator('input').nth(1)
+    const before = await project.inputValue()
+    const after = before.endsWith(' *') ? before.slice(0, -2) : `${before} *`
+    await project.fill(after)
+    await page.click('button[aria-label="Save changes"]')
+    await page.waitForSelector('button[aria-label="Save changes"]', {
+      state: 'detached',
+      timeout: 15000,
+    })
+    await page.waitForTimeout(1200)
+
+    const text = await page.locator('table tbody tr').first().innerText()
+    if (!text.includes(after.trim())) throw new Error('the edit did not persist into the row')
+  })
+
+  await step('escape abandons an inline edit', async () => {
+    const row = page.locator('table tbody tr').first()
+    await row.dblclick()
+    await page.waitForSelector('button[aria-label="Save changes"]', { timeout: 8000 })
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(500)
+    if (await page.locator('button[aria-label="Save changes"]').count()) {
+      throw new Error('the row stayed in edit mode')
+    }
   })
 
   /*
@@ -447,6 +524,39 @@ async function main() {
       await page.waitForTimeout(500)
     })
   }
+
+  /*
+   * Job numbers read <prefix><number>_<suffix>. The three parts are company
+   * settings, so the screen that sets them has to show what they combine into.
+   */
+  await step('job number format is set per company', async () => {
+    await page.goto(`${BASE}/admin/companies`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(600)
+    await page.locator('button[aria-label^="Edit"], button:has-text("Edit")').first().click()
+    await page.waitForSelector('[role="dialog"]', { timeout: 8000 })
+    await page.waitForTimeout(400)
+
+    const dialog = page.locator('[role="dialog"]')
+    const labels = await dialog.locator('label').allInnerTexts()
+    for (const needed of ['Job number prefix', 'Country code']) {
+      if (!labels.some((label) => label.includes(needed))) {
+        throw new Error(`"${needed}" is missing from the company form`)
+      }
+    }
+
+    await dialog.locator('input[name="jobNoPrefix"]').fill('J')
+    await dialog.locator('input[name="jobNoSuffix"]').fill('DXB')
+    await page.waitForTimeout(400)
+    const preview = await dialog.getByText(/Next job number:/).innerText()
+    if (!/J\d+_DXB/.test(preview)) throw new Error(`preview reads "${preview}"`)
+
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(500)
+    // The dialog may ask about unsaved changes; leave without saving.
+    const discard = page.getByRole('button', { name: /discard|leave|yes/i })
+    if (await discard.count()) await discard.first().click()
+    await page.waitForTimeout(400)
+  })
 
   await step('create a user end to end', async () => {
     await page.goto(`${BASE}/admin/users`, { waitUntil: 'networkidle' })

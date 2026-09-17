@@ -29,6 +29,7 @@ import { FormErrorSummary } from '@/components/ui/form-error-summary'
 import { Input, Textarea } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/primitives'
 import type { PipelineRow } from '@/lib/database/enquiry-repository'
+import { enquiryToFormValues } from '@/lib/pipeline/enquiry-draft'
 import { toISODate } from '@/lib/format'
 import { applyAutomationRules, type AutomationRule } from '@/lib/pipeline/automation'
 import { cn } from '@/lib/utils'
@@ -88,24 +89,7 @@ export function EnquiryDrawer({
         statusValueId: options.status[0]?.value ?? '',
       }
     }
-    return {
-      enquiryDate: toISODate(record.enquiryDate) ?? '',
-      salesResponsibleId: record.salesResponsible?.id ?? '',
-      customerId: '',
-      customerName: record.customerName,
-      projectName: record.projectName ?? '',
-      statusValueId: record.status?.id ?? '',
-      locationValueId: record.location?.id ?? '',
-      materialValueId: record.material?.id ?? '',
-      enquiryDetails: record.enquiryDetails ?? '',
-      quoteValue: record.quoteValue === null ? '' : String(record.quoteValue),
-      probabilityValueId: record.probability?.id ?? '',
-      expectedOrderDate: toISODate(record.expectedOrderDate) ?? '',
-      expectedBillingDate: toISODate(record.expectedBillingDate) ?? '',
-      email: record.email ?? '',
-      phoneNumber: record.phoneNumber ?? '',
-      remarks: record.remarks ?? '',
-    }
+    return enquiryToFormValues(record)
     // `options` is intentionally excluded: re-deriving defaults when the
     // catalogue refreshes would discard what the user has typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -206,9 +206,6 @@ function RequestCard({
             <span className="text-[15px] font-semibold text-ink-900 tabular">
               Job {request.enquiry.jobNo}
             </span>
-            <span className="text-[11.5px] text-ink-400 tabular">
-              S.No {request.enquiry.serialNo}
-            </span>
             {request.enquiry.status ? (
               <ValueBadge
                 label={request.enquiry.status.label}

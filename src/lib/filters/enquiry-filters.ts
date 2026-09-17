@@ -44,6 +44,12 @@ const isoDate = z
   .or(z.literal('').transform(() => undefined))
 
 export const SORTABLE_KEYS = [
+  /*
+   * Not a column any more, but still the sort that matters: the serial number
+   * is the only strictly sequential value a request carries, so it is what
+   * "newest first" means. Job numbers can no longer be compared - they read
+   * J1000_DXB and sort as text.
+   */
   'serialNo',
   'createdAt',
   'jobNo',
@@ -59,11 +65,7 @@ export const SORTABLE_KEYS = [
 export type SortableKey = (typeof SORTABLE_KEYS)[number]
 
 export const enquiryFilterSchema = z.object({
-  // 1. S.No
-  serialNoMin: numericValue,
-  serialNoMax: numericValue,
-  serialNo: trimmedString,
-  // 2. Job No
+  // 1. Job No
   jobNo: trimmedString,
   // 3. Enquiry Date
   enquiryDateFrom: isoDate,
@@ -162,7 +164,6 @@ export function activeFilterColumns(filters: EnquiryFilters): Set<PipelineColumn
     }
   }
 
-  mark('serialNo', filters.serialNo, filters.serialNoMin, filters.serialNoMax)
   mark('jobNo', filters.jobNo)
   mark('enquiryDate', filters.enquiryDateFrom, filters.enquiryDateTo)
   mark('salesResponsible', filters.salesResponsible)
@@ -205,7 +206,6 @@ export function clearColumnFilter(
 ): EnquiryFilters {
   const next = { ...filters }
   const reset: Partial<Record<PipelineColumnKey, (keyof EnquiryFilters)[]>> = {
-    serialNo: ['serialNo', 'serialNoMin', 'serialNoMax'],
     jobNo: ['jobNo'],
     enquiryDate: ['enquiryDateFrom', 'enquiryDateTo'],
     salesResponsible: ['salesResponsible'],
@@ -269,22 +269,6 @@ export function buildEnquiryWhere({
   deletedOnly = false,
 }: BuildWhereOptions): Prisma.EnquiryWhereInput {
   const and: Prisma.EnquiryWhereInput[] = []
-
-  // --- S.No (exact, range or partial) ---
-  if (filters.serialNo) {
-    const exact = Number(filters.serialNo)
-    if (Number.isFinite(exact)) {
-      and.push({ serialNo: exact })
-    }
-  }
-  if (filters.serialNoMin !== undefined || filters.serialNoMax !== undefined) {
-    and.push({
-      serialNo: {
-        ...(filters.serialNoMin !== undefined ? { gte: filters.serialNoMin } : {}),
-        ...(filters.serialNoMax !== undefined ? { lte: filters.serialNoMax } : {}),
-      },
-    })
-  }
 
   if (filters.jobNo) and.push({ jobNo: contains(filters.jobNo) })
 

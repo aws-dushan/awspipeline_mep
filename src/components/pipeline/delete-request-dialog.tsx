@@ -97,9 +97,6 @@ export function DeleteRequestDialog({
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-semibold text-ink-900">
                     Job {record.jobNo}
-                    <span className="ml-2 text-[12px] font-normal text-ink-400">
-                      S.No {record.serialNo}
-                    </span>
                   </p>
                   <p className="mt-0.5 truncate text-[13px] text-ink-700">{record.customerName}</p>
                   {record.projectName ? (

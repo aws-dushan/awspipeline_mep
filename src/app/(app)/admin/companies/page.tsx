@@ -20,7 +20,7 @@ export default async function AdminCompaniesPage() {
       color: true,
       currency: true,
       isActive: true,
-      counter: { select: { nextJobNo: true, jobNoPrefix: true } },
+      counter: { select: { nextJobNo: true, jobNoPrefix: true, jobNoSuffix: true } },
       _count: { select: { userCompanies: true, enquiries: true } },
     },
   })
@@ -32,6 +32,7 @@ export default async function AdminCompaniesPage() {
     currency: company.currency,
     isActive: company.isActive,
     jobNoPrefix: company.counter?.jobNoPrefix ?? '',
+    jobNoSuffix: company.counter?.jobNoSuffix ?? '',
     nextJobNo: company.counter?.nextJobNo ?? 1000,
     userCount: company._count.userCompanies,
     enquiryCount: company._count.enquiries,

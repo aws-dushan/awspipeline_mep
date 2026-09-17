@@ -64,6 +64,7 @@ export async function createCompanyAction(
                 nextSerialNo: 1,
                 nextJobNo: parsed.jobNoStart,
                 jobNoPrefix: parsed.jobNoPrefix,
+                jobNoSuffix: parsed.jobNoSuffix,
               },
             },
           },
@@ -122,7 +123,7 @@ export async function updateCompanyAction(
         color: true,
         currency: true,
         isActive: true,
-        counter: { select: { jobNoPrefix: true } },
+        counter: { select: { jobNoPrefix: true, jobNoSuffix: true } },
       },
     })
     if (!existing) throw new NotFoundError('That company no longer exists.')
@@ -134,6 +135,7 @@ export async function updateCompanyAction(
         currency: existing.currency,
         isActive: existing.isActive,
         jobNoPrefix: existing.counter?.jobNoPrefix ?? '',
+        jobNoSuffix: existing.counter?.jobNoSuffix ?? '',
       },
       {
         name: parsed.name,
@@ -141,6 +143,7 @@ export async function updateCompanyAction(
         currency: parsed.currency,
         isActive: parsed.isActive,
         jobNoPrefix: parsed.jobNoPrefix,
+        jobNoSuffix: parsed.jobNoSuffix,
       },
       [
         { field: 'name', label: 'Name' },
@@ -148,6 +151,7 @@ export async function updateCompanyAction(
         { field: 'currency', label: 'Currency' },
         { field: 'isActive', label: 'Active' },
         { field: 'jobNoPrefix', label: 'Job No prefix' },
+        { field: 'jobNoSuffix', label: 'Job No suffix' },
       ],
     )
 
@@ -166,8 +170,12 @@ export async function updateCompanyAction(
         // backwards could collide with numbers already issued.
         await tx.companyCounter.upsert({
           where: { companyId: existing.id },
-          create: { companyId: existing.id, jobNoPrefix: parsed.jobNoPrefix },
-          update: { jobNoPrefix: parsed.jobNoPrefix },
+          create: {
+            companyId: existing.id,
+            jobNoPrefix: parsed.jobNoPrefix,
+            jobNoSuffix: parsed.jobNoSuffix,
+          },
+          update: { jobNoPrefix: parsed.jobNoPrefix, jobNoSuffix: parsed.jobNoSuffix },
         })
 
         if (changes.length > 0) {

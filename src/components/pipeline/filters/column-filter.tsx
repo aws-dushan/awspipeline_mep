@@ -114,39 +114,6 @@ function FilterBody({
     case 'text':
       return <TextFilter column={column} filters={filters} options={options} onChange={onChange} onDone={onDone} />
 
-    case 'number-range':
-      return (
-        <div className="flex flex-col gap-3 p-3">
-          <Input
-            autoFocus
-            placeholder="Exact S.No"
-            inputMode="numeric"
-            defaultValue={filters.serialNo ?? ''}
-            onChange={(event) => onChange({ serialNo: event.target.value || undefined })}
-          />
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Min"
-              inputMode="numeric"
-              className="h-8"
-              defaultValue={filters.serialNoMin ?? ''}
-              onChange={(event) =>
-                onChange({ serialNoMin: event.target.value ? Number(event.target.value) : undefined })
-              }
-            />
-            <span className="text-[12px] text-ink-400">to</span>
-            <Input
-              placeholder="Max"
-              inputMode="numeric"
-              className="h-8"
-              defaultValue={filters.serialNoMax ?? ''}
-              onChange={(event) =>
-                onChange({ serialNoMax: event.target.value ? Number(event.target.value) : undefined })
-              }
-            />
-          </div>
-        </div>
-      )
 
     case 'currency-range':
       return (

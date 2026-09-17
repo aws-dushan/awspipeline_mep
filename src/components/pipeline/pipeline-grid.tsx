@@ -11,13 +11,20 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   Clock3,
   MoreHorizontal,
   Pencil,
   Trash2,
+  X,
 } from 'lucide-react'
 
 import { ColumnFilter, type FilterOptions } from '@/components/pipeline/filters/column-filter'
+import {
+  FIELD_BY_COLUMN,
+  InlineCellEditor,
+  type DraftPatch,
+} from '@/components/pipeline/inline-cell-editor'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -35,10 +42,22 @@ import {
   type EnquiryFilters,
   type SortableKey,
 } from '@/lib/filters/enquiry-filters'
+import { enquiryToFormValues } from '@/lib/pipeline/enquiry-draft'
 import { PIPELINE_COLUMNS, type PipelineColumnKey } from '@/lib/pipeline/columns'
+import type { EnquiryFormInput } from '@/lib/validation/enquiry'
 import { cn } from '@/lib/utils'
 
 const SORTABLE = new Set<string>(SORTABLE_KEYS)
+
+/**
+ * Where the caret lands when a row is opened for editing.
+ *
+ * The leftmost editable *text* column. The pickers to its left open on click
+ * rather than on focus, so starting there would leave the caret nowhere
+ * visible; Job No, further left again, is issued by the server and has no
+ * editor at all.
+ */
+const FIRST_EDITABLE_COLUMN: PipelineColumnKey = 'projectName'
 
 /** Width of the pinned row-actions column, in pixels. */
 const ACTIONS_WIDTH = 52
@@ -49,7 +68,8 @@ const ACTIONS_WIDTH = 52
  * In the default auto layout a browser ignores `max-width` on a cell and
  * widens columns to fit their content. Sticky offsets are computed from the
  * declared widths, so a column that renders wider than declared pushes the
- * next pinned column on top of it - which is what hid S.No behind Job No.
+ * next pinned column on top of it - which is what used to hide the leftmost
+ * pinned column behind the one after it.
  * Fixed layout makes the declared width the actual width, so the offsets are
  * always right and the truncation is predictable.
  */
@@ -74,7 +94,6 @@ function lockedWidth(width: number, left?: number): React.CSSProperties {
 
 /** Column key -> the sort key the backend understands. */
 const SORT_KEY_BY_COLUMN: Partial<Record<PipelineColumnKey, SortableKey>> = {
-  serialNo: 'serialNo',
   jobNo: 'jobNo',
   enquiryDate: 'enquiryDate',
   customerName: 'customerName',
@@ -96,6 +115,14 @@ export type PipelineGridProps = {
   canEdit: (row: PipelineRow) => boolean
   canRequestDelete: boolean
   onEdit: (row: PipelineRow) => void
+  /**
+   * Save a row edited in place. Returns field errors so the offending cells
+   * can be marked without closing the row and losing the rest of the edit.
+   */
+  onInlineSave: (
+    row: PipelineRow,
+    values: EnquiryFormInput,
+  ) => Promise<{ ok: boolean; fieldErrors?: Record<string, string> }>
   onRequestDelete: (row: PipelineRow) => void
   onFilterChange: (patch: Partial<EnquiryFilters>) => void
   onClearColumn: (column: PipelineColumnKey) => void
@@ -114,6 +141,7 @@ export function PipelineGrid({
   canEdit,
   canRequestDelete,
   onEdit,
+  onInlineSave,
   onRequestDelete,
   onFilterChange,
   onClearColumn,
@@ -121,6 +149,90 @@ export function PipelineGrid({
   emptyState,
 }: PipelineGridProps) {
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
+
+  /*
+   * Editing happens in the row itself.
+   *
+   * Only one row at a time: two open drafts would make "unsaved changes" a
+   * question with more than one answer, and the grid has nowhere to ask it.
+   */
+  const [editing, setEditing] = React.useState<{
+    id: string
+    draft: EnquiryFormInput
+    errors: Record<string, string>
+    saving: boolean
+  } | null>(null)
+
+  const beginEdit = React.useCallback((record: PipelineRow) => {
+    setSelectedId(record.id)
+    setEditing({ id: record.id, draft: enquiryToFormValues(record), errors: {}, saving: false })
+  }, [])
+
+  const patchDraft = React.useCallback((patch: DraftPatch) => {
+    setEditing((current) => {
+      if (!current) return current
+      // Clear the error on anything just touched: leaving a cell red after it
+      // has been corrected reads as a second, phantom problem.
+      const errors = { ...current.errors }
+      for (const key of Object.keys(patch)) delete errors[key]
+      return { ...current, draft: { ...current.draft, ...patch }, errors }
+    })
+  }, [])
+
+  /**
+   * Escape cancels, Enter saves - from anywhere in the row.
+   *
+   * Listened for on the window rather than on the row, because the pickers
+   * render their menus in a portal outside the table: a handler on the row
+   * never sees a key pressed while a dropdown is open. An open menu gets first
+   * refusal on both keys, since there Escape closes the menu and Enter chooses
+   * the highlighted option.
+   */
+  const editingId = editing?.id ?? null
+  React.useEffect(() => {
+    if (!editingId) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' && event.key !== 'Enter') return
+      if (event.defaultPrevented) return
+      if (document.querySelector('[data-radix-popper-content-wrapper]')) return
+
+      const record = rows.find((candidate) => candidate.id === editingId)
+      if (!record) return
+
+      event.preventDefault()
+      if (event.key === 'Escape') setEditing(null)
+      else void saveEditRef.current?.(record)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [editingId, rows])
+
+  const saveEdit = React.useCallback(
+    async (record: PipelineRow) => {
+      let values: EnquiryFormInput | null = null
+      setEditing((current) => {
+        if (!current || current.saving) return current
+        values = current.draft
+        return { ...current, saving: true }
+      })
+      if (!values) return
+
+      const result = await onInlineSave(record, values)
+      if (result.ok) {
+        setEditing(null)
+        return
+      }
+      setEditing((current) =>
+        current ? { ...current, saving: false, errors: result.fieldErrors ?? {} } : current,
+      )
+    },
+    [onInlineSave],
+  )
+
+  const saveEditRef = React.useRef(saveEdit)
+  React.useEffect(() => {
+    saveEditRef.current = saveEdit
+  }, [saveEdit])
 
   const columns = React.useMemo<ColumnDef<PipelineRow>[]>(
     () =>
@@ -142,14 +254,14 @@ export function PipelineGrid({
   })
 
   /**
-   * Left-pinned columns: row actions first, then S.No and Job No. Keeping
-   * those three fixed is what makes 17 columns navigable - you always know
-   * which row you are reading, and can act on it without scrolling back.
+   * Left-pinned columns: row actions first, then Job No. Keeping those two
+   * fixed is what makes the grid navigable - you always know which row you are
+   * reading, and can act on it without scrolling back.
    *
    * Offsets are cumulative declared widths, so every pinned cell has to be
    * exactly as wide as it claims. A cell allowed to grow past its declared
    * width ends up underneath the next pinned cell, which is what previously
-   * hid S.No behind Job No once the grid was scrolled.
+   * hid one pinned column behind another once the grid was scrolled.
    */
   const pinnedOffsets = React.useMemo(() => {
     const offsets = new Map<PipelineColumnKey, number>()
@@ -266,11 +378,16 @@ export function PipelineGrid({
               const selected = selectedId === record.id
               const pendingDelete = Boolean(record.pendingDeleteRequest)
 
+              const rowEdit = editing?.id === record.id ? editing : null
+
               return (
                 <tr
                   key={record.id}
-                  onClick={() => setSelectedId(record.id)}
-                  onDoubleClick={() => canEdit(record) && onEdit(record)}
+                  onClick={() => !rowEdit && setSelectedId(record.id)}
+                  onDoubleClick={() => {
+                    if (rowEdit || !canEdit(record)) return
+                    beginEdit(record)
+                  }}
                   className={cn(
                     'group/row cursor-default transition-colors duration-100',
                     index % 2 === 1 && 'bg-ink-50/35',
@@ -278,6 +395,8 @@ export function PipelineGrid({
                     selected && 'bg-brand-50/70 hover:bg-brand-50/70',
                     highlightedIds.has(record.id) && 'row-flash',
                     pendingDelete && 'opacity-[0.94]',
+                    rowEdit && 'bg-brand-50/70 hover:bg-brand-50/70',
+                    rowEdit?.saving && 'pointer-events-none opacity-70',
                   )}
                 >
                   <td
@@ -292,13 +411,47 @@ export function PipelineGrid({
                       'group-hover/row:bg-[#eff4fd]',
                     )}
                   >
-                    <RowActions
-                      row={record}
-                      canEdit={canEdit(record)}
-                      canRequestDelete={canRequestDelete}
-                      onEdit={() => onEdit(record)}
-                      onRequestDelete={() => onRequestDelete(record)}
-                    />
+                    {rowEdit ? (
+                      <span className="flex items-center justify-center gap-0.5">
+                        <Tooltip content="Save (Enter)">
+                          <Button
+                            variant="ghost"
+                            size="iconXs"
+                            aria-label="Save changes"
+                            loading={rowEdit.saving}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              void saveEdit(record)
+                            }}
+                            className="text-positive hover:bg-positive-soft"
+                          >
+                            <Check />
+                          </Button>
+                        </Tooltip>
+                        <Tooltip content="Cancel (Esc)">
+                          <Button
+                            variant="ghost"
+                            size="iconXs"
+                            aria-label="Cancel editing"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setEditing(null)
+                            }}
+                            className="text-ink-400 hover:text-ink-700"
+                          >
+                            <X />
+                          </Button>
+                        </Tooltip>
+                      </span>
+                    ) : (
+                      <RowActions
+                        row={record}
+                        canEdit={canEdit(record)}
+                        canRequestDelete={canRequestDelete}
+                        onEdit={() => onEdit(record)}
+                        onRequestDelete={() => onRequestDelete(record)}
+                      />
+                    )}
                   </td>
 
                   {row.getVisibleCells().map((cell) => {
@@ -314,7 +467,8 @@ export function PipelineGrid({
                           ...(pinnedLeft !== undefined ? { left: pinnedLeft } : {}),
                         }}
                         className={cn(
-                          'h-[46px] border-b border-ink-100/70 px-3 text-[13px] text-ink-700',
+                          'h-[46px] border-b border-ink-100/70 text-[13px] text-ink-700',
+                          rowEdit && FIELD_BY_COLUMN[column.key] ? 'px-1' : 'px-3',
                           pinnedLeft !== undefined && [
                             'sticky z-[5] shadow-[1px_0_0_0_var(--color-ink-100)]',
                             // The pinned cells need their own opaque background
@@ -330,7 +484,19 @@ export function PipelineGrid({
                           column.align === 'center' && 'text-center',
                         )}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {rowEdit && FIELD_BY_COLUMN[column.key] ? (
+                          <InlineCellEditor
+                            column={column}
+                            draft={rowEdit.draft}
+                            options={filterOptions}
+                            currency={currency}
+                            autoFocus={column.key === FIRST_EDITABLE_COLUMN}
+                            invalid={Boolean(rowEdit.errors[FIELD_BY_COLUMN[column.key]!])}
+                            onPatch={patchDraft}
+                          />
+                        ) : (
+                          flexRender(cell.column.columnDef.cell, cell.getContext())
+                        )}
                       </td>
                     )
                   })}
@@ -374,9 +540,6 @@ export function PipelineGrid({
 
 function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string): React.ReactNode {
   switch (key) {
-    case 'serialNo':
-      return <span className="tabular text-[12.5px] font-medium text-ink-400">{row.serialNo}</span>
-
     case 'jobNo':
       return (
         <span className="inline-flex items-center gap-1.5">

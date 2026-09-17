@@ -118,7 +118,11 @@ model CompanyCounter {
   companyId    String @id
   nextSerialNo Int    @default(1)
   nextJobNo    Int    @default(1000)
+  /// Job numbers read <prefix><number>_<suffix>, e.g. J1000_DXB. Both parts
+  /// are optional and set per company; the separator only appears when there
+  /// is a suffix to separate.
   jobNoPrefix  String @default("")
+  jobNoSuffix  String @default("")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
