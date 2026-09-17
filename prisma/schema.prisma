@@ -1,0 +1,497 @@
+// =============================================================================
+//  AWS Distribution - Pipeline / Enquiry Tracking System
+//  PostgreSQL schema
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  // `relationJoins` lets a query with nested relations run as one LATERAL
+  // JOIN instead of one round trip per relation. The pipeline row pulls in
+  // nine relations, and the database is remote (~34ms RTT), so this is the
+  // difference between ~180ms and ~30ms per page of rows.
+  previewFeatures = ["relationJoins"]
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+//  Enums
+// -----------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  USER
+}
+
+enum DropdownTypeKey {
+  STATUS
+  LOCATION
+  MATERIAL
+  PROBABILITY
+}
+
+enum DeleteRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  ENQUIRY_CREATED
+  ENQUIRY_UPDATED
+  ENQUIRY_DELETE_REQUESTED
+  ENQUIRY_DELETE_APPROVED
+  ENQUIRY_DELETE_REJECTED
+  ENQUIRY_RESTORED
+  DROPDOWN_VALUE_CREATED
+  DROPDOWN_VALUE_UPDATED
+  DROPDOWN_VALUE_DEACTIVATED
+  DROPDOWN_VALUE_REACTIVATED
+  AUTOMATION_RULE_CREATED
+  AUTOMATION_RULE_UPDATED
+  AUTOMATION_RULE_DELETED
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  CUSTOMER_CREATED
+  CUSTOMER_UPDATED
+  CUSTOMER_MERGED
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  USER_PASSWORD_RESET
+  USER_COMPANY_ASSIGNED
+  USER_COMPANY_REVOKED
+  SUPERVISOR_ASSIGNED
+  SUPERVISOR_REMOVED
+  DATA_EXPORTED
+}
+
+enum AuditEntity {
+  ENQUIRY
+  COMPANY
+  USER
+  CUSTOMER
+  DROPDOWN_VALUE
+  AUTOMATION_RULE
+  DELETE_REQUEST
+  SUPERVISOR_ASSIGNMENT
+  USER_COMPANY
+}
+
+// -----------------------------------------------------------------------------
+//  Company
+// -----------------------------------------------------------------------------
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  legalName String?
+  logoUrl   String?
+  /// Hex accent used for company chips and the company selection cards.
+  color     String   @default("#1E4FD8")
+  currency  String   @default("AED")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userCompanies  UserCompany[]
+  enquiries      Enquiry[]
+  customers      Customer[]
+  dropdownValues DropdownValue[]
+  automationRules AutomationRule[]
+  auditLogs      AuditLog[]
+  deleteRequests DeleteRequest[]
+  counter        CompanyCounter?
+
+  @@index([isActive])
+  @@map("companies")
+}
+
+/// Per-company monotonic counters for S.No and Job No, so numbers never
+/// collide across companies and are never reused after a soft delete.
+model CompanyCounter {
+  companyId    String @id
+  nextSerialNo Int    @default(1)
+  nextJobNo    Int    @default(1000)
+  jobNoPrefix  String @default("")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_counters")
+}
+
+// -----------------------------------------------------------------------------
+//  Users and authentication
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  /// Sign-in credential, entered by the administrator when the account is
+  /// created. Stored lower-cased so sign-in is case-insensitive.
+  username     String    @unique
+  /// Contact address. Not used to sign in.
+  email        String    @unique
+  /// Optional short display code shown in the pipeline, e.g. "SRUTY".
+  displayCode  String?
+  passwordHash String
+  role         Role      @default(USER)
+  isActive     Boolean   @default(true)
+  avatarColor  String    @default("#1E4FD8")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  userCompanies UserCompany[]
+
+  supervisorLinks  SupervisorAssignment[] @relation("AssignmentSubordinate")
+  subordinateLinks SupervisorAssignment[] @relation("AssignmentSupervisor")
+
+  customersCreated Customer[] @relation("CustomerCreatedBy")
+
+  enquiriesResponsible Enquiry[] @relation("EnquirySalesResponsible")
+  enquiriesCreated     Enquiry[] @relation("EnquiryCreatedBy")
+  enquiriesUpdated     Enquiry[] @relation("EnquiryUpdatedBy")
+  enquiriesDeleted     Enquiry[] @relation("EnquiryDeletedBy")
+
+  deleteRequestsMade     DeleteRequest[] @relation("DeleteRequestRequestedBy")
+  deleteRequestsAssigned DeleteRequest[] @relation("DeleteRequestSupervisor")
+  deleteRequestsDecided  DeleteRequest[] @relation("DeleteRequestDecidedBy")
+
+  auditLogs AuditLog[]
+  sessions  AuthSession[]
+
+  @@index([isActive])
+  @@index([role])
+  @@map("users")
+}
+
+/// Assignment of a user to a company (many-to-many).
+model UserCompany {
+  id        String   @id @default(cuid())
+  userId    String
+  companyId String
+  /// Marks the company opened by default when the user has several.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@index([userId])
+  @@map("user_companies")
+}
+
+/// Who a user reports to. Modelled as its own table rather than a self FK on
+/// User so the relationship can later become company-scoped or time-bounded.
+model SupervisorAssignment {
+  id           String   @id @default(cuid())
+  userId       String
+  supervisorId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User @relation("AssignmentSubordinate", fields: [userId], references: [id], onDelete: Cascade)
+  supervisor User @relation("AssignmentSupervisor", fields: [supervisorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([supervisorId])
+  @@map("supervisor_assignments")
+}
+
+/// Database-backed sessions issued at login. The JWT carries the session id and
+/// every request revalidates it, so an admin can revoke access immediately.
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+/// Login attempt ledger backing the login rate limiter.
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String
+  ipAddress  String
+  successful Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([identifier, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("login_attempts")
+}
+
+// -----------------------------------------------------------------------------
+//  Configurable dropdowns
+// -----------------------------------------------------------------------------
+
+model DropdownType {
+  id          String          @id @default(cuid())
+  key         DropdownTypeKey @unique
+  label       String
+  description String?
+  createdAt   DateTime        @default(now())
+
+  values DropdownValue[]
+
+  @@map("dropdown_types")
+}
+
+model DropdownValue {
+  id        String          @id @default(cuid())
+  companyId String
+  typeId    String
+  typeKey   DropdownTypeKey
+  label     String
+  /// Hex colour for the badge. Null means a neutral badge.
+  color     String?
+  sortOrder Int             @default(0)
+  isActive  Boolean         @default(true)
+  /// Optional numeric weight. PROBABILITY uses 0-100 for colour ramping and
+  /// weighted pipeline value. Null for the other types.
+  numericValue Decimal?     @db.Decimal(6, 2)
+  isDefault    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type    DropdownType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  rulesWhen AutomationRule[] @relation("RuleWhenValue")
+  rulesThen AutomationRule[] @relation("RuleThenValue")
+
+  statusEnquiries      Enquiry[] @relation("EnquiryStatus")
+  locationEnquiries    Enquiry[] @relation("EnquiryLocation")
+  materialEnquiries    Enquiry[] @relation("EnquiryMaterial")
+  probabilityEnquiries Enquiry[] @relation("EnquiryProbability")
+
+  @@unique([companyId, typeKey, label])
+  @@index([companyId, typeKey, isActive, sortOrder])
+  @@map("dropdown_values")
+}
+
+// -----------------------------------------------------------------------------
+//  Automation rules
+// -----------------------------------------------------------------------------
+
+/// Admin-configured linkage between two dropdown fields, e.g.
+/// "when Probability = 100% then Status = Won".
+///
+/// Deliberately generic: the pair of fields is not hard-coded, so an admin can
+/// also express "when Status = Lost then Probability = 0%" or wire up Location
+/// and Material later, without a code change.
+model AutomationRule {
+  id        String @id @default(cuid())
+  companyId String
+
+  /// Field whose value fires the rule.
+  whenType    DropdownTypeKey
+  whenValueId String
+
+  /// Field the rule writes, and the value it writes.
+  thenType    DropdownTypeKey
+  thenValueId String
+
+  /// When false the rule still shows in settings but never applies.
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  whenValue DropdownValue @relation("RuleWhenValue", fields: [whenValueId], references: [id], onDelete: Cascade)
+  thenValue DropdownValue @relation("RuleThenValue", fields: [thenValueId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, whenValueId, thenType])
+  @@index([companyId, isActive])
+  @@map("automation_rules")
+}
+
+// -----------------------------------------------------------------------------
+//  Customers
+// -----------------------------------------------------------------------------
+
+/// A customer belongs to exactly one company, so one company can never see
+/// another company's customer book. Users pick from this list when raising an
+/// enquiry, and can create a new entry inline when the customer is not listed.
+model Customer {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  email     String?
+  phone     String?
+  isActive  Boolean  @default(true)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  enquiries Enquiry[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive, name])
+  @@map("customers")
+}
+
+// -----------------------------------------------------------------------------
+//  Enquiry - the pipeline row
+// -----------------------------------------------------------------------------
+
+model Enquiry {
+  id        String @id @default(cuid())
+  companyId String
+
+  serialNo Int
+  jobNo    String
+
+  enquiryDate        DateTime
+  salesResponsibleId String?
+  customerId         String?
+  /// Denormalised copy of the customer name. Kept in sync whenever a customer
+  /// is renamed, so filtering, sorting and export stay single-table and fast.
+  customerName       String
+  projectName        String?
+  statusValueId       String?
+  locationValueId     String?
+  materialValueId     String?
+  enquiryDetails      String?
+  quoteValue          Decimal?  @db.Decimal(16, 2)
+  probabilityValueId  String?
+  expectedOrderDate   DateTime?
+  expectedBillingDate DateTime?
+  email               String?
+  phoneNumber         String?
+  remarks             String?
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  isDeleted    Boolean   @default(false)
+  deletedAt    DateTime?
+  deletedById  String?
+  deleteReason String?
+
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customer         Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  salesResponsible User?          @relation("EnquirySalesResponsible", fields: [salesResponsibleId], references: [id], onDelete: SetNull)
+  status           DropdownValue? @relation("EnquiryStatus", fields: [statusValueId], references: [id], onDelete: Restrict)
+  location         DropdownValue? @relation("EnquiryLocation", fields: [locationValueId], references: [id], onDelete: Restrict)
+  material         DropdownValue? @relation("EnquiryMaterial", fields: [materialValueId], references: [id], onDelete: Restrict)
+  probability      DropdownValue? @relation("EnquiryProbability", fields: [probabilityValueId], references: [id], onDelete: Restrict)
+  createdBy        User?          @relation("EnquiryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy        User?          @relation("EnquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  deletedBy        User?          @relation("EnquiryDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  deleteRequests DeleteRequest[]
+  auditLogs      AuditLog[]
+
+  @@unique([companyId, jobNo])
+  @@unique([companyId, serialNo])
+  @@index([companyId, isDeleted, createdAt(sort: Desc)])
+  @@index([companyId, isDeleted, enquiryDate(sort: Desc)])
+  @@index([companyId, salesResponsibleId])
+  @@index([companyId, statusValueId])
+  @@index([companyId, locationValueId])
+  @@index([companyId, materialValueId])
+  @@index([companyId, probabilityValueId])
+  @@index([companyId, expectedOrderDate])
+  @@index([companyId, expectedBillingDate])
+  @@index([companyId, customerName])
+  @@index([companyId, customerId])
+  @@map("enquiries")
+}
+
+// -----------------------------------------------------------------------------
+//  Deletion workflow
+// -----------------------------------------------------------------------------
+
+model DeleteRequest {
+  id        String              @id @default(cuid())
+  companyId String
+  enquiryId String
+  status    DeleteRequestStatus @default(PENDING)
+
+  requestedById String
+  requestedAt   DateTime @default(now())
+  reason        String
+
+  /// Supervisor the request was routed to at submission time.
+  supervisorId String?
+
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  enquiry     Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  requestedBy User    @relation("DeleteRequestRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  supervisor  User?   @relation("DeleteRequestSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  decidedBy   User?   @relation("DeleteRequestDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status, requestedAt(sort: Desc)])
+  @@index([supervisorId, status])
+  @@index([requestedById, status])
+  @@index([enquiryId, status])
+  @@map("delete_requests")
+}
+
+// -----------------------------------------------------------------------------
+//  Audit trail
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  companyId String?
+  actorId   String?
+  action    AuditAction
+  entity    AuditEntity
+  entityId  String
+
+  /// Pre-rendered one-line summary, so listing does not need joins.
+  summary String
+
+  /// Structured field-level diff: [{ field, label, from, to }]
+  changes Json?
+
+  /// Free-form structured context: reason, ip, filter payload, and so on.
+  metadata Json?
+
+  enquiryId String?
+  createdAt DateTime @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor   User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  enquiry Enquiry? @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@index([entity, entityId, createdAt(sort: Desc)])
+  @@index([enquiryId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
