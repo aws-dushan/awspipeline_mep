@@ -8,6 +8,20 @@ import type { NextAuthConfig } from 'next-auth'
  * providers (which touch the database) live in `auth.ts` instead. Everything
  * here must stay free of Node-only dependencies.
  */
+/**
+ * `basePath` is deliberately left at its default of `/api/auth`.
+ *
+ * Next strips the deployment prefix before it reaches the route handler, so
+ * the server genuinely sees `/api/auth/...`; telling Auth.js otherwise makes
+ * it fail to parse the action and answer 400. Only the browser needs the
+ * prefix, and it gets it from `<SessionProvider basePath>`.
+ *
+ * `AUTH_URL` follows the same rule: its path is where Auth.js takes its base
+ * path from, so it ends at /api/auth and never carries the deployment prefix.
+ * Its origin, on the other hand, does matter - Next's standalone server builds
+ * request.url from the address it binds to (0.0.0.0), and without a real
+ * origin Auth.js sends a signed-out browser to http://0.0.0.0:3000.
+ */
 export const authConfig = {
   pages: {
     signIn: '/login',

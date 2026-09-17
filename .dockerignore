@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.github
+ui-shots
+docs
+*.log
+
+# Secrets. These are git-ignored too, but the build context is a separate
+# path into the image and has to refuse them independently.
+.env
+.env.local
+.deploy.env

@@ -11,7 +11,6 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowDown,
   ArrowUp,
-  ChevronsUpDown,
   Clock3,
   FileSpreadsheet,
   MoreHorizontal,
@@ -31,7 +30,7 @@ import {
 import { ProbabilityBadge, ValueBadge } from '@/components/ui/badge'
 import { Avatar, Skeleton, Tooltip } from '@/components/ui/primitives'
 import type { PipelineRow } from '@/lib/database/enquiry-repository'
-import { formatCalendarDate, formatCurrency, formatRelative } from '@/lib/format'
+import { formatCalendarDate, formatCurrency } from '@/lib/format'
 import {
   SORTABLE_KEYS,
   type EnquiryFilters,
@@ -233,9 +232,7 @@ export function PipelineGrid({
                               ) : (
                                 <ArrowDown className="size-3 shrink-0" />
                               )
-                            ) : (
-                              <ChevronsUpDown className="size-3 shrink-0 opacity-0 transition-opacity group-hover/header:opacity-40" />
-                            )}
+                            ) : null}
                           </button>
                         ) : (
                           <span className="truncate">
@@ -567,7 +564,7 @@ function RowActions({
           size="iconXs"
           onClick={(event) => event.stopPropagation()}
           aria-label={`Actions for job ${row.jobNo}`}
-          className="opacity-0 transition-opacity group-hover/row:opacity-100 data-[state=open]:opacity-100"
+          className="text-ink-400 transition-colors hover:text-ink-700 data-[state=open]:text-ink-900"
         >
           <MoreHorizontal />
         </Button>

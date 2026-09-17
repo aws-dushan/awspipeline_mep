@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RelativeTime } from '@/components/ui/relative-time'
 import { Avatar, Tooltip } from '@/components/ui/primitives'
 import { useLiveChannel } from '@/hooks/use-live-channel'
 import {
@@ -24,7 +25,7 @@ import {
   AUDIT_ACTION_TONE,
   type AuditFeedEntry,
 } from '@/lib/audit/labels'
-import { formatDateTime, formatRelative } from '@/lib/format'
+import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const TONE_CLASSES: Record<string, string> = {
@@ -217,9 +218,10 @@ export function AuditTimeline({
                         {entry.summary}
                       </p>
                       <Tooltip content={formatDateTime(entry.createdAt)}>
-                        <span className="shrink-0 text-[11.5px] text-ink-400">
-                          {formatRelative(entry.createdAt)}
-                        </span>
+                        <RelativeTime
+                          value={entry.createdAt}
+                          className="shrink-0 text-[11.5px] text-ink-400"
+                        />
                       </Tooltip>
                     </div>
 

@@ -128,6 +128,26 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Browser `confirm()` replaced with an in-app dialog.
 - [x] Form failures now show a summary banner naming the field.
 
+## Deployment
+
+- [x] Served at `https://ralsnahashho.dyndns.org:1000/awsmepplms`, behind the
+      existing nginx edge, alongside the applications already on port 1000
+- [x] Multi-stage Dockerfile on Next's `standalone` output; no source and no
+      build toolchain in the shipped layer
+- [x] Its own compose project on the shared `aws-app_aws-app` network, so the
+      infrastructure-managed `docker-compose.app.yml` is left untouched
+- [x] Database confirmed to be the PostgreSQL cluster on AWS-Data - same
+      `system_identifier` through both addresses - reached at `172.30.0.20:5432`
+- [x] Base path compiled into the image and passed through by nginx unchanged;
+      `withBasePath()` covers the URLs Next does not rewrite
+- [x] SSE stream exempted from proxy buffering and from the 120s read timeout
+- [x] Container publishes no host port, so the TLS edge cannot be bypassed
+- [x] `node scripts/deploy/push.mjs` is repeatable and idempotent; see
+      `docs/deployment.md`
+- [ ] Rotate the `pipeline_app` database password before go-live - it was set
+      during development and has been used from a workstation
+- [ ] Clear the development and QA records from the database before handover
+
 ## Known gaps / next steps
 
 - [x] Brand assets traced to SVG per colour, so the mark is crisp at any size

@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { apiPath } from '@/lib/base-path'
+
 export type RealtimeChannel = 'pipeline' | 'delete-requests' | 'customers' | 'dropdowns' | 'users'
 
 export type RealtimeEvent = {
@@ -56,7 +58,7 @@ function connect(companyId: string) {
     retryTimer: null,
   }
 
-  const source = new EventSource(`/api/companies/${companyId}/stream`)
+  const source = new EventSource(apiPath(`/api/companies/${companyId}/stream`))
   entry.source = source
   connections.set(companyId, entry)
   setStatus(companyId, 'connecting')

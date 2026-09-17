@@ -12,6 +12,7 @@ import { TopBar } from '@/components/layout/top-bar'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/primitives'
 import { useLiveChannel } from '@/hooks/use-live-channel'
+import { withBasePath } from '@/lib/base-path'
 import type { CompanyAccess } from '@/lib/auth/session'
 import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
@@ -64,7 +65,8 @@ export function AppShell({
           action: {
             label: 'Review',
             onClick: () => {
-              window.location.href = `/c/${company.id}/delete-requests`
+              // A real navigation, not the router: the prefix is ours to add.
+              window.location.href = withBasePath(`/c/${company.id}/delete-requests`)
             },
           },
         })

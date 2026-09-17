@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Avatar, Switch, Tooltip } from '@/components/ui/primitives'
-import { formatRelative } from '@/lib/format'
+import { RelativeTime } from '@/components/ui/relative-time'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import { createUserSchema, updateUserSchema } from '@/lib/validation/admin'
@@ -261,7 +261,7 @@ export function UserManager({
                   </div>
 
                   <span className="hidden w-28 shrink-0 text-right text-[11.5px] text-ink-400 xl:block">
-                    {user.lastLoginAt ? formatRelative(user.lastLoginAt) : 'Never signed in'}
+                    {user.lastLoginAt ? <RelativeTime value={user.lastLoginAt} /> : 'Never signed in'}
                   </span>
 
                   <div className="flex shrink-0 items-center gap-1">

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { brand } from '@/lib/branding'
 import type { CompanyAccess } from '@/lib/auth/session'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
+import { withBasePath } from '@/lib/base-path'
 
 const EASE = [0.25, 1, 0.5, 1] as const
 
@@ -68,7 +69,7 @@ export function CompanySelector({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={() => signOut({ callbackUrl: withBasePath('/login') })}
           className="text-ink-500"
         >
           <LogOut />

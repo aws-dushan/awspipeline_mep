@@ -147,6 +147,44 @@ async function main() {
     if (headers.length < 17) throw new Error(`only ${headers.length} headers rendered`)
   })
 
+  /*
+   * The deployment serves the app under a path prefix, and the pipeline
+   * rewrites the address bar itself as filters change. If that rewrite drops
+   * the prefix, every later Server Action posts to a path the proxy does not
+   * route - saving stops working while every screen still renders. It looks
+   * like a database fault and is not one, so it is asserted directly.
+   */
+  await step('address bar keeps the deployment prefix', async () => {
+    const prefix = new URL(BASE).pathname.replace(/\/$/, '')
+    await page.click('table tbody tr')
+    await page.waitForTimeout(300)
+    const current = new URL(page.url()).pathname
+    if (prefix && !current.startsWith(`${prefix}/`)) {
+      throw new Error(`address bar lost the prefix: ${current}`)
+    }
+  })
+
+  /*
+   * A save driven from the pipeline page, which is the page that rewrites its
+   * own URL. Deliberately submits a wrong current password: the point is to
+   * prove the action reaches the server and answers, not to change anything.
+   */
+  await step('a save from the pipeline page reaches the server', async () => {
+    await page.locator('header button').last().click()
+    await page.waitForTimeout(300)
+    await page.getByText(/change password/i).first().click()
+    await page.waitForTimeout(400)
+    const dialog = page.locator('[role="dialog"]')
+    const inputs = dialog.locator('input')
+    await inputs.nth(0).fill('DefinitelyNotIt1')
+    await inputs.nth(1).fill('BrandNewPass9')
+    await inputs.nth(2).fill('BrandNewPass9')
+    await dialog.getByRole('button', { name: /change password/i }).click()
+    await dialog.getByText(/not your current password/i).first().waitFor({ timeout: 15000 })
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  })
+
   await step('grid uses full width (no sidebar)', async () => {
     const box = await page.locator('table').boundingBox()
     const viewport = page.viewportSize()
@@ -359,6 +397,31 @@ async function main() {
     await page.goto(`${BASE}/c/${companyId}/admin/dropdowns`, { waitUntil: 'networkidle' })
     await page.click('button:has-text("Automation")')
     await page.waitForTimeout(700)
+  })
+
+  /*
+   * Last, because it ends the session.
+   *
+   * Auth.js resolves the sign-out callback against the origin it believes it
+   * is serving. Behind the proxy, Next's standalone server reports the address
+   * it binds to - so a misconfigured deployment sends the browser to
+   * http://0.0.0.0:3000 and the user is simply stranded. Asserting the landing
+   * URL catches that; asserting that sign-out "worked" would not.
+   */
+  await step('sign out returns to this site', async () => {
+    await page.goto(`${BASE}/select-company`, { waitUntil: 'networkidle' })
+    await page.locator('header button, button:has-text("Sign out")').last().click()
+    await page.waitForTimeout(300)
+    await page.getByText(/sign out/i).first().click()
+    await page.waitForURL(/\/login/, { timeout: 20000 })
+    const landed = new URL(page.url())
+    const expected = new URL(BASE)
+    if (landed.origin !== expected.origin) {
+      throw new Error(`landed on ${landed.origin}, expected ${expected.origin}`)
+    }
+    if (!landed.pathname.startsWith(expected.pathname.replace(/\/$/, ''))) {
+      throw new Error(`landed on ${landed.pathname}`)
+    }
   })
 
   await browser.close()

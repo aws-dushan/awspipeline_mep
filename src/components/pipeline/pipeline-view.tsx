@@ -35,6 +35,7 @@ import {
 } from '@/lib/filters/enquiry-filters'
 import type { AutomationRule } from '@/lib/pipeline/automation'
 import type { PipelineColumnKey } from '@/lib/pipeline/columns'
+import { apiPath, withBasePath } from '@/lib/base-path'
 import { canEditEnquiry } from '@/lib/permissions'
 import type { EnquiryFormInput } from '@/lib/validation/enquiry'
 import {
@@ -84,12 +85,20 @@ export function PipelineView({
    * full render plus its database queries - while React Query fetched the same
    * rows again anyway. Writing the URL with `history.replaceState` keeps the
    * view shareable and refresh-safe, and leaves exactly one request per change.
+   *
+   * `usePathname()` reports the path *without* the deployment prefix, so it
+   * has to be put back before writing. Without that the address bar loses the
+   * prefix, and because a Server Action posts to whatever the current URL is,
+   * the next save goes to a path nginx does not route and 404s. It presents as
+   * "an unexpected response was received from the server" on a screen that
+   * worked a moment earlier.
    */
   const [filters, setFilters] = React.useState<EnquiryFilters>(initialFilters)
 
   React.useEffect(() => {
     const query = serializeEnquiryFilters(filters, { includePaging: true }).toString()
-    const next = query ? `${pathname}?${query}` : pathname
+    const base = withBasePath(pathname)
+    const next = query ? `${base}?${query}` : base
     if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState(null, '', next)
     }
@@ -117,7 +126,7 @@ export function PipelineView({
   } = useQuery<PipelinePage>({
     queryKey: ['pipeline', company.id, queryString],
     queryFn: async ({ signal }) => {
-      const response = await fetch(`/api/enquiries?${queryString}`, { signal })
+      const response = await fetch(apiPath(`/api/enquiries?${queryString}`), { signal })
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string }
         throw new Error(body.error ?? 'Unable to load the pipeline.')
@@ -235,7 +244,7 @@ export function PipelineView({
   // --- Mutations -----------------------------------------------------------
   async function refreshCustomers() {
     try {
-      const response = await fetch(`/api/customers?companyId=${company.id}`)
+      const response = await fetch(apiPath(`/api/customers?companyId=${company.id}`))
       if (response.ok) setCustomers((await response.json()) as CustomerOption[])
     } catch {
       /* the picker still works with the list it has */
@@ -308,7 +317,7 @@ export function PipelineView({
       const params = serializeEnquiryFilters(filters)
       params.set('companyId', company.id)
 
-      const response = await fetch(`/api/export?${params.toString()}`)
+      const response = await fetch(apiPath(`/api/export?${params.toString()}`))
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as { error?: string }
         throw new Error(body.error ?? 'The export failed.')

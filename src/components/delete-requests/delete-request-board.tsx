@@ -31,7 +31,8 @@ import { Field } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/input'
 import { Avatar, Tabs, TabsList, TabsTrigger, Tooltip } from '@/components/ui/primitives'
 import { useLiveChannel } from '@/hooks/use-live-channel'
-import { formatCalendarDate, formatCurrency, formatDateTime, formatRelative } from '@/lib/format'
+import { RelativeTime } from '@/components/ui/relative-time'
+import { formatCalendarDate, formatCurrency, formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { DeleteRequestListItem } from '@/server/actions/delete-request-actions'
 import {
@@ -264,7 +265,7 @@ function RequestCard({
               </p>
               <Tooltip content={formatDateTime(request.requestedAt)}>
                 <p className="text-[11.5px] text-ink-400">
-                  {formatRelative(request.requestedAt)}
+                  <RelativeTime value={request.requestedAt} />
                 </p>
               </Tooltip>
             </div>
@@ -330,7 +331,12 @@ function RequestCard({
           ) : (
             <p className="text-[12px] text-ink-400">
               {request.decidedBy ? `By ${request.decidedBy.name}` : ''}
-              {request.decidedAt ? ` · ${formatRelative(request.decidedAt)}` : ''}
+              {request.decidedAt ? (
+                <>
+                  {' · '}
+                  <RelativeTime value={request.decidedAt} />
+                </>
+              ) : null}
             </p>
           )}
         </div>

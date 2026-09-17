@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLiveChannel } from '@/hooks/use-live-channel'
 import type { CustomerOption } from '@/lib/database/customer-repository'
-import { formatNumber, formatRelative } from '@/lib/format'
+import { RelativeTime } from '@/components/ui/relative-time'
+import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 /**
@@ -177,9 +178,12 @@ export function CustomerDirectory({
                       {customer.enquiryCount > 0
                         ? `${formatNumber(customer.enquiryCount)} ${customer.enquiryCount === 1 ? 'request' : 'requests'}`
                         : 'No requests yet'}
-                      {customer.lastEnquiryAt
-                        ? ` · last ${formatRelative(customer.lastEnquiryAt)}`
-                        : ''}
+                      {customer.lastEnquiryAt ? (
+                        <>
+                          {' · last '}
+                          <RelativeTime value={customer.lastEnquiryAt} />
+                        </>
+                      ) : null}
                     </p>
                   </div>
                 </div>

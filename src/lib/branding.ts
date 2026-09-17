@@ -4,6 +4,8 @@
  * Everything visual that is company-specific lives here. To rebrand the
  * application, drop a new logo into `public/brand/` and edit this file only.
  */
+import { withBasePath } from '@/lib/base-path'
+
 
 export type BrandConfig = {
   /** Company name shown next to the logo and used in export filenames. */
@@ -31,9 +33,9 @@ export type BrandConfig = {
 export const brand: BrandConfig = {
   name: 'AWS Distribution',
   productName: 'Pipeline Management System',
-  logoLight: '/brand/mark-light.svg',
-  logoDark: '/brand/mark.svg',
-  mark: '/brand/mark.svg',
+  logoLight: withBasePath('/brand/mark-light.svg'),
+  logoDark: withBasePath('/brand/mark.svg'),
+  mark: withBasePath('/brand/mark.svg'),
   titleSuffix: 'Pipeline',
   primary: '#302078',
   accent: '#E8681A',

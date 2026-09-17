@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 
 import { AppProviders } from '@/components/providers/app-providers'
+import { withBasePath } from '@/lib/base-path'
 import { brand } from '@/lib/branding'
 
 import './globals.css'
@@ -19,14 +20,15 @@ export const metadata: Metadata = {
   },
   description: `${brand.productName} for ${brand.name}.`,
   // SVG first for crisp tabs; the PNGs cover Safari and "add to home screen",
-  // which ignore SVG favicons.
+  // which ignore SVG favicons. Next does not apply the base path to metadata
+  // URLs, so they are prefixed by hand.
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
-      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: withBasePath('/favicon.svg'), type: 'image/svg+xml' },
+      { url: withBasePath('/favicon-32.png'), type: 'image/png', sizes: '32x32' },
+      { url: withBasePath('/icon-192.png'), type: 'image/png', sizes: '192x192' },
     ],
-    apple: [{ url: '/apple-icon.png', sizes: '180x180' }],
+    apple: [{ url: withBasePath('/apple-icon.png'), sizes: '180x180' }],
   },
   robots: { index: false, follow: false },
 }

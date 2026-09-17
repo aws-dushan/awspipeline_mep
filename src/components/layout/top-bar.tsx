@@ -44,6 +44,7 @@ import { can, ROLE_LABELS } from '@/lib/permissions'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import type { LiveStatus } from '@/hooks/use-live-channel'
 import type { Role } from '@prisma/client'
+import { withBasePath } from '@/lib/base-path'
 
 export function TopBar({
   user,
@@ -190,7 +191,7 @@ export function TopBar({
             ) : null}
 
             <DropdownMenuSeparator />
-            <DropdownMenuItem destructive onSelect={() => signOut({ callbackUrl: '/login' })}>
+            <DropdownMenuItem destructive onSelect={() => signOut({ callbackUrl: withBasePath('/login') })}>
               <LogOut />
               Sign out
             </DropdownMenuItem>

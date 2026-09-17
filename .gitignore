@@ -20,3 +20,6 @@ next-env.d.ts
 
 # Deployment credentials (never committed)
 .deploy.env
+
+# Deployment artefact, rebuilt on every push.
+deploy/.artifact.tgz
