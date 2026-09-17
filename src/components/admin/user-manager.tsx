@@ -47,7 +47,7 @@ import {
 import { Avatar, Switch, Tooltip } from '@/components/ui/primitives'
 import { formatRelative } from '@/lib/format'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
-import { cn, hexWithAlpha } from '@/lib/utils'
+import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import { createUserSchema, updateUserSchema } from '@/lib/validation/admin'
 import type { AdminUserRow } from '@/server/actions/admin-actions'
 import {
@@ -57,7 +57,7 @@ import {
   updateUserAction,
 } from '@/server/actions/admin-actions'
 
-export type CompanyChoice = { id: string; name: string; code: string; color: string }
+export type CompanyChoice = { id: string; name: string; color: string }
 
 const ROLE_TONE: Record<Role, 'brand' | 'info' | 'neutral'> = {
   ADMIN: 'brand',
@@ -249,7 +249,7 @@ export function UserManager({
                             color: company.color,
                           }}
                         >
-                          {company.code}
+                          {initials(company.name)}
                         </span>
                       ))
                     )}
@@ -601,7 +601,6 @@ function UserDialog({
                       options={companies.map((company) => ({
                         value: company.id,
                         label: company.name,
-                        description: company.code,
                         leading: (
                           <span
                             aria-hidden

@@ -10,8 +10,6 @@ export type BrandConfig = {
   name: string
   /** Short product name shown under the logo on the login screen. */
   productName: string
-  /** Optional legal/long form, used on the login screen footer. */
-  legalName: string
   /** Mark for dark/gradient surfaces - the navy wordmark lifted to white. */
   logoLight: string
   /** Logo used on light surfaces (app shell top bar). */
@@ -33,7 +31,6 @@ export type BrandConfig = {
 export const brand: BrandConfig = {
   name: 'AWS Distribution',
   productName: 'Pipeline Management System',
-  legalName: 'AWS Distribution LLC',
   logoLight: '/brand/mark-light.svg',
   logoDark: '/brand/mark.svg',
   mark: '/brand/mark.svg',

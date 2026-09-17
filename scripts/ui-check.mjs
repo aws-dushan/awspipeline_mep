@@ -11,10 +11,8 @@ import { resolve } from 'node:path'
 
 // Pick up SEED_ADMIN_PASSWORD from .env so credentials stay out of this file.
 try {
-  for (const line of readFileSync('.env', 'utf8').split('
-')) {
-    const match = /^s*([A-Z_]+)s*=s*"?([^"
-]*)"?s*$/.exec(line)
+  for (const line of readFileSync('.env', 'utf8').split(/\r?\n/)) {
+    const match = /^\s*([A-Z_]+)\s*=\s*"?([^"]*)"?\s*$/.exec(line)
     if (match && !process.env[match[1]]) process.env[match[1]] = match[2]
   }
 } catch {
@@ -332,7 +330,7 @@ async function main() {
 
     // Now assign a company and save for real. The option row carries both the
     // company name and its short code.
-    await page.locator('button').filter({ hasText: /AWSD$/ }).first().click()
+    await page.locator('button').filter({ hasText: /^AWS Distribution$/ }).first().click()
     await page.waitForTimeout(500)
     await page.click('button:has-text("Create user")')
     await page.waitForTimeout(2500)

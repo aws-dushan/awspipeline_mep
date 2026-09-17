@@ -56,8 +56,6 @@ export async function createCompanyAction(
         const created = await tx.company.create({
           data: {
             name: parsed.name,
-            code: parsed.code,
-            legalName: parsed.legalName,
             color: parsed.color,
             currency: parsed.currency,
             isActive: parsed.isActive,
@@ -89,7 +87,7 @@ export async function createCompanyAction(
             entity: 'COMPANY',
             entityId: created.id,
             summary: `${user.name} created company ${created.name}`,
-            metadata: { code: parsed.code, currency: parsed.currency },
+            metadata: { currency: parsed.currency },
           },
           tx,
         )
@@ -101,7 +99,7 @@ export async function createCompanyAction(
       return company
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictError(`A company with the code "${parsed.code}" already exists.`)
+        throw new ConflictError(`A company named "${parsed.name}" already exists.`)
       }
       throw error
     }
@@ -121,8 +119,6 @@ export async function updateCompanyAction(
       select: {
         id: true,
         name: true,
-        code: true,
-        legalName: true,
         color: true,
         currency: true,
         isActive: true,
@@ -134,8 +130,6 @@ export async function updateCompanyAction(
     const changes = diffRecords(
       {
         name: existing.name,
-        code: existing.code,
-        legalName: existing.legalName,
         color: existing.color,
         currency: existing.currency,
         isActive: existing.isActive,
@@ -143,8 +137,6 @@ export async function updateCompanyAction(
       },
       {
         name: parsed.name,
-        code: parsed.code,
-        legalName: parsed.legalName,
         color: parsed.color,
         currency: parsed.currency,
         isActive: parsed.isActive,
@@ -152,8 +144,6 @@ export async function updateCompanyAction(
       },
       [
         { field: 'name', label: 'Name' },
-        { field: 'code', label: 'Code' },
-        { field: 'legalName', label: 'Legal name' },
         { field: 'color', label: 'Accent colour' },
         { field: 'currency', label: 'Currency' },
         { field: 'isActive', label: 'Active' },
@@ -167,8 +157,6 @@ export async function updateCompanyAction(
           where: { id: existing.id },
           data: {
             name: parsed.name,
-            code: parsed.code,
-            legalName: parsed.legalName,
             color: parsed.color,
             currency: parsed.currency,
             isActive: parsed.isActive,
@@ -199,7 +187,7 @@ export async function updateCompanyAction(
       })
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictError(`A company with the code "${parsed.code}" already exists.`)
+        throw new ConflictError(`A company named "${parsed.name}" already exists.`)
       }
       throw error
     }
@@ -674,7 +662,7 @@ export async function listUsersForAdmin() {
       userCompanies: {
         select: {
           isDefault: true,
-          company: { select: { id: true, name: true, code: true, color: true } },
+          company: { select: { id: true, name: true, color: true } },
         },
       },
       supervisorLinks: {

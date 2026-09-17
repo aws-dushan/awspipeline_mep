@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const companyRecord = await prisma.company.findUniqueOrThrow({
       where: { id: company.id },
-      select: { name: true, code: true, currency: true },
+      select: { name: true, currency: true },
     })
 
     const labels = await resolveFilterLabels(company.id, filters)

@@ -10,7 +10,7 @@ import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { brand } from '@/lib/branding'
 import type { CompanyAccess } from '@/lib/auth/session'
-import { cn, hexWithAlpha } from '@/lib/utils'
+import { cn, hexWithAlpha, initials } from '@/lib/utils'
 
 const EASE = [0.25, 1, 0.5, 1] as const
 
@@ -157,7 +157,7 @@ export function CompanySelector({
                         className="size-12 rounded-lg object-cover"
                       />
                     ) : (
-                      company.code.slice(0, 2)
+                      initials(company.name)
                     )}
                   </span>
 
@@ -172,7 +172,7 @@ export function CompanySelector({
                   {company.name}
                 </h2>
                 <p className="relative mt-1 text-[12.5px] text-ink-400">
-                  {company.code} · {company.currency}
+                  {company.currency}
                 </p>
 
                 <span className="relative mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-600">

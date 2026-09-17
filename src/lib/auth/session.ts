@@ -25,7 +25,6 @@ export type CurrentUser = {
 export type CompanyAccess = {
   id: string
   name: string
-  code: string
   color: string
   currency: string
   logoUrl: string | null
@@ -88,7 +87,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
                 select: {
                   id: true,
                   name: true,
-                  code: true,
                   color: true,
                   currency: true,
                   logoUrl: true,
@@ -122,7 +120,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
             select: {
               id: true,
               name: true,
-              code: true,
               color: true,
               currency: true,
               logoUrl: true,

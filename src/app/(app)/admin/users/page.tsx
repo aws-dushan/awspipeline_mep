@@ -18,7 +18,7 @@ export default async function AdminUsersPage() {
     prisma.company.findMany({
       where: { isActive: true },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, code: true, color: true },
+      select: { id: true, name: true, color: true },
     }),
   ])
 

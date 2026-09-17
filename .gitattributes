@@ -1,0 +1,12 @@
+# Keep line endings stable across Windows and the Linux servers this deploys
+# to. Without this, Git rewrites the working tree to CRLF on checkout, which
+# breaks shell scripts and Dockerfiles once they reach the container.
+* text=auto eol=lf
+
+# Binary assets must never be touched.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary

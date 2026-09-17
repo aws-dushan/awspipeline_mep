@@ -17,8 +17,6 @@ export default async function AdminCompaniesPage() {
     select: {
       id: true,
       name: true,
-      code: true,
-      legalName: true,
       color: true,
       currency: true,
       isActive: true,
@@ -30,8 +28,6 @@ export default async function AdminCompaniesPage() {
   const companies: AdminCompany[] = rows.map((company) => ({
     id: company.id,
     name: company.name,
-    code: company.code,
-    legalName: company.legalName,
     color: company.color,
     currency: company.currency,
     isActive: company.isActive,

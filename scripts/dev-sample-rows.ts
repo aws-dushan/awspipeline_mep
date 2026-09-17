@@ -5,7 +5,7 @@ const prisma = new PrismaClient()
 
 async function main() {
   const company = await prisma.company.findUnique({
-    where: { code: process.argv[2] ?? 'AWSD' },
+    where: { name: process.argv[2] ?? 'AWS Distribution' },
     select: { id: true, counter: { select: { nextSerialNo: true, nextJobNo: true } } },
   })
   if (!company) throw new Error('Company not found')

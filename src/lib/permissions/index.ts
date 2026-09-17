@@ -65,6 +65,10 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'delete:request',
     'delete:review',
     'dropdown:view',
+    // Supervisors own the day-to-day vocabulary of their pipeline - the
+    // statuses, locations, materials and the Status/Probability linkage - so
+    // they do not have to wait on an administrator to add a value.
+    'dropdown:manage',
     'user:view',
     'audit:view',
   ],
@@ -114,6 +118,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   ADMIN: 'Full control over companies, users, dropdowns and audit history.',
-  SUPERVISOR: 'Works the pipeline and approves deletion requests from their team.',
+  SUPERVISOR:
+    'Works the pipeline, approves deletion requests from their team, and configures dropdown values and automation rules.',
   USER: 'Works the pipeline and submits deletion requests for approval.',
 }

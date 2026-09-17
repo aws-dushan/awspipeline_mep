@@ -90,9 +90,7 @@ enum AuditEntity {
 
 model Company {
   id        String   @id @default(cuid())
-  name      String
-  code      String   @unique
-  legalName String?
+  name      String   @unique
   logoUrl   String?
   /// Hex accent used for company chips and the company selection cards.
   color     String   @default("#1E4FD8")

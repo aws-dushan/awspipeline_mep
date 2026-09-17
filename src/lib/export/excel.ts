@@ -23,7 +23,7 @@ const BORDER_COLOR = 'FFE2E8F0'
 const ZEBRA_FILL = 'FFF8FAFC'
 
 export type ExportContext = QueryOptions & {
-  company: { name: string; code: string; currency: string }
+  company: { name: string; currency: string }
   exportedBy: { name: string; email: string }
 }
 

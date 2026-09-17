@@ -41,7 +41,7 @@ import { Avatar, Tooltip } from '@/components/ui/primitives'
 import type { CompanyAccess } from '@/lib/auth/session'
 import { brand } from '@/lib/branding'
 import { can, ROLE_LABELS } from '@/lib/permissions'
-import { cn, hexWithAlpha } from '@/lib/utils'
+import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import type { LiveStatus } from '@/hooks/use-live-channel'
 import type { Role } from '@prisma/client'
 
@@ -342,7 +342,7 @@ function CompanySwitcher({
       className="grid size-6 shrink-0 place-items-center rounded-[6px] text-[10.5px] font-bold"
       style={{ backgroundColor: hexWithAlpha(company.color, 0.14), color: company.color }}
     >
-      {company.code.slice(0, 2)}
+      {initials(company.name)}
     </span>
   )
 
@@ -391,14 +391,14 @@ function CompanySwitcher({
                 color: option.color,
               }}
             >
-              {option.code.slice(0, 2)}
+              {initials(option.name)}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-medium text-ink-800">
                 {option.name}
               </span>
               <span className="block text-[11px] text-ink-400">
-                {option.code} · {option.currency}
+                {option.currency}
               </span>
             </span>
             {option.id === company.id ? (

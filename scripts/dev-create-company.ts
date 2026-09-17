@@ -10,15 +10,15 @@ import { buildDefaultDropdownRows } from '../src/lib/database/dropdown-defaults'
 const prisma = new PrismaClient()
 
 async function main() {
-  const [, , code = 'AWSD', name = 'AWS Distribution'] = process.argv
+  const [, , name = 'AWS Distribution'] = process.argv
 
   const admin = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
   const types = await prisma.dropdownType.findMany({ select: { id: true, key: true } })
   const typeIds = Object.fromEntries(types.map((t) => [t.key, t.id])) as Record<DropdownTypeKey, string>
 
-  const existing = await prisma.company.findUnique({ where: { code } })
+  const existing = await prisma.company.findUnique({ where: { name } })
   if (existing) {
-    console.log(`Company ${code} already exists: ${existing.id}`)
+    console.log(`Company ${name} already exists: ${existing.id}`)
     return
   }
 
@@ -26,8 +26,6 @@ async function main() {
     const created = await tx.company.create({
       data: {
         name,
-        code,
-        legalName: `${name} LLC`,
         color: '#1E4FD8',
         currency: 'AED',
         counter: { create: { nextSerialNo: 1, nextJobNo: 1261, jobNoPrefix: '' } },

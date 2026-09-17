@@ -82,16 +82,6 @@ export type DropdownValueInput = z.infer<typeof dropdownValueSchema>
 
 export const companySchema = z.object({
   name: z.string().trim().min(2, 'Company name is required').max(120),
-  code: z
-    .string()
-    .trim()
-    .min(2, 'Code must be at least 2 characters')
-    .max(12, 'Code must be 12 characters or fewer')
-    .regex(/^[A-Za-z0-9_-]+$/, 'Use letters, numbers, hyphen or underscore only')
-    .transform((value) => value.toUpperCase()),
-  legalName: optionalRef.refine((value) => value === null || value.length <= 160, {
-    message: 'Legal name must be 160 characters or fewer',
-  }),
   color: hexColor.default('#302078'),
   currency: z
     .string()

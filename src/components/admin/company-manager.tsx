@@ -27,14 +27,12 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/primitives'
 import { formatNumber } from '@/lib/format'
 import { companySchema } from '@/lib/validation/admin'
-import { cn, hexWithAlpha } from '@/lib/utils'
+import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import { createCompanyAction, updateCompanyAction } from '@/server/actions/admin-actions'
 
 export type AdminCompany = {
   id: string
   name: string
-  code: string
-  legalName: string | null
   color: string
   currency: string
   isActive: boolean
@@ -111,7 +109,7 @@ export function CompanyManager({ companies }: { companies: AdminCompany[] }) {
                     color: company.color,
                   }}
                 >
-                  {company.code.slice(0, 2)}
+                  {initials(company.name)}
                 </span>
 
                 <div className="flex items-center gap-1.5">
@@ -135,12 +133,8 @@ export function CompanyManager({ companies }: { companies: AdminCompany[] }) {
               <h2 className="mt-4 truncate text-[15.5px] font-semibold tracking-[-0.01em] text-ink-900">
                 {company.name}
               </h2>
-              {company.legalName ? (
-                <p className="mt-0.5 truncate text-[12.5px] text-ink-400">{company.legalName}</p>
-              ) : null}
 
               <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-ink-100 pt-3.5">
-                <Stat label="Code" value={company.code} />
                 <Stat label="Currency" value={company.currency} />
                 <Stat label="Next job" value={`${company.jobNoPrefix}${company.nextJobNo}`} />
               </dl>
@@ -241,8 +235,6 @@ function CompanyDialog({
   const defaultValues = React.useMemo<FormValues>(
     () => ({
       name: company?.name ?? '',
-      code: company?.code ?? '',
-      legalName: company?.legalName ?? '',
       color: company?.color ?? '#302078',
       currency: company?.currency ?? 'AED',
       isActive: company?.isActive ?? true,
@@ -295,7 +287,7 @@ function CompanyDialog({
   return (
     <AnimatedDialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
-        <DialogHeader eyebrow={isEdit ? company?.code : 'New'}>
+        <DialogHeader eyebrow={isEdit ? 'Edit' : 'New'}>
           <DialogTitle>{isEdit ? 'Edit company' : 'Create company'}</DialogTitle>
           <DialogDescription>
             {isEdit
@@ -314,24 +306,7 @@ function CompanyDialog({
               />
             </Field>
 
-            <Field label="Legal name" error={errors.legalName?.message}>
-              <Input {...register('legalName')} />
-            </Field>
-
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Short code"
-                required
-                error={errors.code?.message}
-                hint="Used in export filenames and company chips."
-              >
-                <Input
-                  className="uppercase"
-                  invalid={Boolean(errors.code)}
-                  {...register('code')}
-                />
-              </Field>
-
               <Field label="Currency" required error={errors.currency?.message}>
                 <Input
                   maxLength={3}

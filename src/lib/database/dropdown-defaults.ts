@@ -3,9 +3,16 @@ import { DropdownTypeKey, type Prisma } from '@prisma/client'
 /**
  * Starter dropdown values applied to a newly created company.
  *
- * These are a convenience only. Nothing in the application logic depends on
- * these labels existing or meaning anything in particular - an admin is free
- * to rename, recolour, reorder, deactivate or replace every one of them.
+ * Status and Probability are standard across every company, so they ship
+ * populated and identical - together with the automation rules that link
+ * them, which reference these labels by name.
+ *
+ * Location and Material are deliberately empty: they differ by company and
+ * by trade, so guessing at them leaves an admin deleting entries that were
+ * never wanted. The company starts with none and its own are added as needed.
+ *
+ * Nothing in the application logic depends on any of these labels existing -
+ * all of it can be renamed, recoloured, reordered or deactivated.
  */
 
 export type DefaultDropdownValue = {
@@ -24,27 +31,8 @@ export const DEFAULT_DROPDOWN_VALUES: Record<DropdownTypeKey, DefaultDropdownVal
     { label: 'Lost', color: '#DC2626' },
     { label: 'No Stock', color: '#64748B' },
   ],
-  LOCATION: [
-    { label: 'DXB', color: '#0EA5E9' },
-    { label: 'SHJ', color: '#14B8A6' },
-    { label: 'AUH', color: '#6366F1' },
-    { label: 'AJM', color: '#F59E0B' },
-    { label: 'RAK', color: '#EC4899' },
-    { label: 'UAQ', color: '#8B5CF6' },
-    { label: 'FUJ', color: '#10B981' },
-    { label: 'AIN', color: '#F97316' },
-  ],
-  MATERIAL: [
-    { label: 'AC', color: '#0EA5E9' },
-    { label: 'MEP', color: '#6366F1' },
-    { label: 'PPR', color: '#14B8A6' },
-    { label: 'Electrical', color: '#F59E0B' },
-    { label: 'LED Lights', color: '#EAB308' },
-    { label: 'ELV', color: '#8B5CF6' },
-    { label: 'Sanitary Wares', color: '#06B6D4' },
-    { label: 'Pumps', color: '#EC4899' },
-    { label: 'Generators', color: '#64748B' },
-  ],
+  LOCATION: [],
+  MATERIAL: [],
   PROBABILITY: [
     { label: '0%', color: '#94A3B8', numericValue: 0 },
     { label: '25%', color: '#F59E0B', numericValue: 25 },

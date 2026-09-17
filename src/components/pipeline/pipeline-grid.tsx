@@ -42,6 +42,38 @@ import { cn } from '@/lib/utils'
 
 const SORTABLE = new Set<string>(SORTABLE_KEYS)
 
+/** Width of the pinned row-actions column, in pixels. */
+const ACTIONS_WIDTH = 52
+
+/**
+ * Total grid width, and the reason the table uses `table-layout: fixed`.
+ *
+ * In the default auto layout a browser ignores `max-width` on a cell and
+ * widens columns to fit their content. Sticky offsets are computed from the
+ * declared widths, so a column that renders wider than declared pushes the
+ * next pinned column on top of it - which is what hid S.No behind Job No.
+ * Fixed layout makes the declared width the actual width, so the offsets are
+ * always right and the truncation is predictable.
+ */
+const TOTAL_WIDTH =
+  ACTIONS_WIDTH + PIPELINE_COLUMNS.reduce((sum, column) => sum + column.width, 0)
+
+/**
+ * Lock a column to an exact width.
+ *
+ * Sticky offsets are computed from declared widths, so a pinned cell that
+ * renders wider than declared slides under its neighbour. Pinning min and max
+ * to the same value removes that possibility.
+ */
+function lockedWidth(width: number, left?: number): React.CSSProperties {
+  return {
+    width,
+    minWidth: width,
+    maxWidth: width,
+    ...(left !== undefined ? { left } : {}),
+  }
+}
+
 /** Column key -> the sort key the backend understands. */
 const SORT_KEY_BY_COLUMN: Partial<Record<PipelineColumnKey, SortableKey>> = {
   serialNo: 'serialNo',
@@ -112,14 +144,18 @@ export function PipelineGrid({
   })
 
   /**
-   * Left-pinned columns are positioned with sticky offsets computed from the
-   * declared widths. Keeping S.No and Job No visible is what makes horizontal
-   * scrolling through 17 columns navigable - you always know which row you are
-   * reading.
+   * Left-pinned columns: row actions first, then S.No and Job No. Keeping
+   * those three fixed is what makes 17 columns navigable - you always know
+   * which row you are reading, and can act on it without scrolling back.
+   *
+   * Offsets are cumulative declared widths, so every pinned cell has to be
+   * exactly as wide as it claims. A cell allowed to grow past its declared
+   * width ends up underneath the next pinned cell, which is what previously
+   * hid S.No behind Job No once the grid was scrolled.
    */
   const pinnedOffsets = React.useMemo(() => {
     const offsets = new Map<PipelineColumnKey, number>()
-    let running = 0
+    let running = ACTIONS_WIDTH
     for (const column of PIPELINE_COLUMNS) {
       if (!column.pinned) break
       offsets.set(column.key, running)
@@ -131,10 +167,21 @@ export function PipelineGrid({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white shadow-sm">
       <div className="scroll-polished min-h-0 flex-1 overflow-auto overscroll-x-contain">
-        <table className="w-max min-w-full border-separate border-spacing-0 text-left">
+        <table
+          style={{ width: TOTAL_WIDTH, tableLayout: 'fixed' }}
+          className="border-separate border-spacing-0 text-left"
+        >
           <thead className="sticky top-0 z-20">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
+                <th
+                  scope="col"
+                  style={lockedWidth(ACTIONS_WIDTH, 0)}
+                  className="sticky left-0 z-10 h-10 border-b border-ink-100 bg-ink-50/80 px-2 backdrop-blur"
+                >
+                  <span className="sr-only">Actions</span>
+                </th>
+
                 {headerGroup.headers.map((header) => {
                   const column = PIPELINE_COLUMNS.find((c) => c.key === header.id)!
                   const sortKey = SORT_KEY_BY_COLUMN[column.key]
@@ -209,12 +256,6 @@ export function PipelineGrid({
                   )
                 })}
 
-                <th
-                  scope="col"
-                  className="sticky right-0 z-10 h-10 w-12 border-b border-l border-ink-100 bg-ink-50/80 px-2 backdrop-blur"
-                >
-                  <span className="sr-only">Actions</span>
-                </th>
               </tr>
             ))}
           </thead>
@@ -243,6 +284,27 @@ export function PipelineGrid({
                     pendingDelete && 'opacity-[0.94]',
                   )}
                 >
+                  <td
+                    style={lockedWidth(ACTIONS_WIDTH, 0)}
+                    className={cn(
+                      'sticky left-0 z-[5] h-[46px] border-b border-ink-100/70 px-1 text-center',
+                      selected
+                        ? 'bg-[#eef3fb]'
+                        : index % 2 === 1
+                          ? 'bg-[#fafbfd]'
+                          : 'bg-white',
+                      'group-hover/row:bg-[#eff4fd]',
+                    )}
+                  >
+                    <RowActions
+                      row={record}
+                      canEdit={canEdit(record)}
+                      canRequestDelete={canRequestDelete}
+                      onEdit={() => onEdit(record)}
+                      onRequestDelete={() => onRequestDelete(record)}
+                    />
+                  </td>
+
                   {row.getVisibleCells().map((cell) => {
                     const column = PIPELINE_COLUMNS.find((c) => c.key === cell.column.id)!
                     const pinnedLeft = pinnedOffsets.offsets.get(column.key)
@@ -256,7 +318,7 @@ export function PipelineGrid({
                           ...(pinnedLeft !== undefined ? { left: pinnedLeft } : {}),
                         }}
                         className={cn(
-                          'h-[46px] max-w-0 border-b border-ink-100/70 px-3 text-[13px] text-ink-700',
+                          'h-[46px] border-b border-ink-100/70 px-3 text-[13px] text-ink-700',
                           pinnedLeft !== undefined && [
                             'sticky z-[5] shadow-[1px_0_0_0_var(--color-ink-100)]',
                             // The pinned cells need their own opaque background
@@ -277,25 +339,6 @@ export function PipelineGrid({
                     )
                   })}
 
-                  <td
-                    className={cn(
-                      'sticky right-0 z-[5] h-[46px] w-12 border-b border-l border-ink-100/70 px-1 text-center',
-                      selected
-                        ? 'bg-[#eef3fb]'
-                        : index % 2 === 1
-                          ? 'bg-[#fafbfd]'
-                          : 'bg-white',
-                      'group-hover/row:bg-[#eff4fd]',
-                    )}
-                  >
-                    <RowActions
-                      row={record}
-                      canEdit={canEdit(record)}
-                      canRequestDelete={canRequestDelete}
-                      onEdit={() => onEdit(record)}
-                      onRequestDelete={() => onRequestDelete(record)}
-                    />
-                  </td>
                 </tr>
               )
             })}
@@ -608,7 +651,6 @@ function SkeletonRows({ pinnedOffsets }: { pinnedOffsets: Map<PipelineColumnKey,
               </td>
             )
           })}
-          <td className="sticky right-0 z-[5] h-[46px] w-12 border-b border-l border-ink-100/70 bg-white" />
         </tr>
       ))}
     </>

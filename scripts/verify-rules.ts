@@ -47,8 +47,6 @@ function section(title: string) {
 
 async function main() {
   const suffix = Date.now().toString(36).toUpperCase().slice(-5)
-  const codeA = `TSTA${suffix}`
-  const codeB = `TSTB${suffix}`
 
   const types = await prisma.dropdownType.findMany({ select: { id: true, key: true } })
   const typeIds = Object.fromEntries(types.map((t) => [t.key, t.id])) as Record<
@@ -58,10 +56,9 @@ async function main() {
 
   const owner = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
 
-  async function makeCompany(code: string, name: string) {
+  async function makeCompany(name: string) {
     const company = await prisma.company.create({
       data: {
-        code,
         name,
         counter: { create: { nextSerialNo: 1, nextJobNo: 1000 } },
       },
@@ -71,8 +68,8 @@ async function main() {
     return company.id
   }
 
-  const companyA = await makeCompany(codeA, 'Test Company A')
-  const companyB = await makeCompany(codeB, 'Test Company B')
+  const companyA = await makeCompany(`Test Company A ${suffix}`)
+  const companyB = await makeCompany(`Test Company B ${suffix}`)
 
   const valuesA = await prisma.dropdownValue.findMany({
     where: { companyId: companyA },

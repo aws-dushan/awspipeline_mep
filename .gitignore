@@ -17,3 +17,6 @@ next-env.d.ts
 /ui-shots
 /prisma/migrations/**/shadow.db
 *.local.md
+
+# Deployment credentials (never committed)
+.deploy.env
