@@ -71,7 +71,7 @@ export type PipelineRow = {
   id: string
   serialNo: number
   jobNo: string
-  enquiryDate: string
+  enquiryDate: string | null
   salesResponsible: { id: string; name: string; displayCode: string | null; avatarColor: string } | null
   customerName: string
   projectName: string | null
@@ -118,7 +118,7 @@ function serializeRow(row: EnquiryRow): PipelineRow {
     id: row.id,
     serialNo: row.serialNo,
     jobNo: row.jobNo,
-    enquiryDate: row.enquiryDate.toISOString(),
+    enquiryDate: row.enquiryDate?.toISOString() ?? null,
     salesResponsible: row.salesResponsible,
     customerName: row.customerName,
     projectName: row.projectName,

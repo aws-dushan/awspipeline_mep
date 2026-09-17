@@ -112,7 +112,7 @@ export function DeleteRequestDialog({
                     <div className="flex justify-between gap-2">
                       <dt className="text-ink-400">Enquiry date</dt>
                       <dd className="tabular font-medium text-ink-700">
-                        {formatCalendarDate(record.enquiryDate)}
+                        {formatCalendarDate(record.enquiryDate, '—')}
                       </dd>
                     </div>
                     <div className="flex justify-between gap-2">

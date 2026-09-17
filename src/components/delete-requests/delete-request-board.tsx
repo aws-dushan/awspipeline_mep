@@ -236,7 +236,7 @@ function RequestCard({
             <span>
               Enquiry{' '}
               <span className="font-medium text-ink-700 tabular">
-                {formatCalendarDate(request.enquiry.enquiryDate)}
+                {formatCalendarDate(request.enquiry.enquiryDate, '—')}
               </span>
             </span>
             {request.enquiry.quoteValue !== null ? (

@@ -271,6 +271,66 @@ async function main() {
     await page.waitForTimeout(700)
   })
 
+  /*
+   * Which fields are mandatory is a business decision, not a styling one, so
+   * it is asserted rather than eyeballed. S.No and Job No are mandatory too
+   * but are generated on save, so they are not inputs and cannot be checked
+   * here.
+   */
+  await step('only the agreed fields are mandatory', async () => {
+    const REQUIRED = [
+      'Sales responsible',
+      'Customer name',
+      'Project name',
+      'Status',
+      'Location',
+      'Material',
+      'Enquiry details',
+      'Probability',
+    ]
+    const OPTIONAL = [
+      'Enquiry date',
+      'Quote value',
+      'Expected order date',
+      'Expected billing date',
+      'Email',
+      'Phone number',
+      'Remarks',
+    ]
+
+    const marked = await page.$$eval('[role="dialog"] label', (els) =>
+      els.map((el) => ({
+        text: el.textContent?.replace(/\*$/, '').trim() ?? '',
+        required: Boolean(el.querySelector('[data-required], .text-negative')) ||
+          (el.textContent ?? '').trim().endsWith('*'),
+      })),
+    )
+    const find = (name) => marked.find((m) => m.text.startsWith(name))
+
+    for (const name of REQUIRED) {
+      const field = find(name)
+      if (!field) throw new Error(`"${name}" is not on the form`)
+      if (!field.required) throw new Error(`"${name}" should be mandatory and is not marked`)
+    }
+    for (const name of OPTIONAL) {
+      const field = find(name)
+      if (field?.required) throw new Error(`"${name}" is marked mandatory and should not be`)
+    }
+
+    // And the rules are enforced, not just advertised: saving an empty form
+    // must be refused with the fields named.
+    await page
+      .locator('[role="dialog"]')
+      .getByRole('button', { name: /^(Add request|Save changes)$/ })
+      .click()
+    await page.waitForTimeout(900)
+    const summary = await page
+      .locator('[role="dialog"]')
+      .getByText(/correct the fields below/i)
+      .count()
+    if (summary === 0) throw new Error('an empty request was not refused')
+  })
+
   await step('inline customer create asks for contact details', async () => {
     await page.click('button:has-text("Search or add a customer")')
     await page.waitForTimeout(400)
@@ -410,9 +470,8 @@ async function main() {
    */
   await step('sign out returns to this site', async () => {
     await page.goto(`${BASE}/select-company`, { waitUntil: 'networkidle' })
-    await page.locator('header button, button:has-text("Sign out")').last().click()
-    await page.waitForTimeout(300)
-    await page.getByText(/sign out/i).first().click()
+    // The company chooser signs out directly; no account menu to open first.
+    await page.getByRole('button', { name: /sign out/i }).first().click()
     await page.waitForURL(/\/login/, { timeout: 20000 })
     const landed = new URL(page.url())
     const expected = new URL(BASE)

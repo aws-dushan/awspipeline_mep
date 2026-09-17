@@ -25,15 +25,22 @@ const optionalId = z
     return trimmed === '' ? null : trimmed
   })
 
-const calendarDate = z
-  .string()
-  .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Enter a valid date')
-
 const optionalCalendarDate = optionalId.refine(
   (value) => value === null || /^\d{4}-\d{2}-\d{2}$/.test(value),
   { message: 'Enter a valid date' },
 )
+
+/**
+ * A reference that must be chosen.
+ *
+ * Same normalisation as `optionalId` - a cleared picker can send "", null or
+ * undefined - but all three are rejected rather than stored as null.
+ */
+const requiredId = (message: string) =>
+  z
+    .union([z.string(), z.null(), z.undefined()])
+    .transform((value) => (value ?? '').trim())
+    .refine((value) => value.length > 0, { message })
 
 /** Accepts "1,250.50", "AED 1250", 1250 - rejects anything else. */
 const optionalCurrency = z
@@ -51,10 +58,17 @@ const optionalCurrency = z
     message: 'Quote value is too large',
   })
 
+/**
+ * The ten fields a request cannot be saved without.
+ *
+ * S.No and Job No are not among the form's inputs - both are generated on
+ * save - but they are mandatory in the same sense: every record has them.
+ * Everything else here is genuinely optional and may be left blank.
+ */
 export const enquiryFormSchema = z
   .object({
-    enquiryDate: calendarDate,
-    salesResponsibleId: optionalId,
+    enquiryDate: optionalCalendarDate,
+    salesResponsibleId: requiredId('Select who is responsible for this request'),
     /**
      * The picker sends an existing customer id, or leaves it empty and sends
      * only `customerName` when the user chose "Add new customer".
@@ -70,12 +84,16 @@ export const enquiryFormSchema = z
       .trim()
       .min(1, 'Project name is required')
       .max(200, 'Project name must be 200 characters or fewer'),
-    statusValueId: optionalId,
-    locationValueId: optionalId,
-    materialValueId: optionalId,
-    enquiryDetails: optionalText(2000, 'Enquiry details'),
+    statusValueId: requiredId('Select a status'),
+    locationValueId: requiredId('Select a location'),
+    materialValueId: requiredId('Select a material'),
+    enquiryDetails: z
+      .string()
+      .trim()
+      .min(1, 'Enquiry details are required')
+      .max(2000, 'Enquiry details must be 2000 characters or fewer'),
     quoteValue: optionalCurrency,
-    probabilityValueId: optionalId,
+    probabilityValueId: requiredId('Select a probability'),
     expectedOrderDate: optionalCalendarDate,
     expectedBillingDate: optionalCalendarDate,
     email: optionalId.refine(

@@ -65,7 +65,7 @@ export type DeleteRequestListItem = {
     serialNo: number
     customerName: string
     projectName: string | null
-    enquiryDate: string
+    enquiryDate: string | null
     quoteValue: number | null
     status: { label: string; color: string | null } | null
     isDeleted: boolean
@@ -134,7 +134,7 @@ export async function listDeleteRequests(
     decidedBy: row.decidedBy,
     enquiry: {
       ...row.enquiry,
-      enquiryDate: row.enquiry.enquiryDate.toISOString(),
+      enquiryDate: row.enquiry.enquiryDate?.toISOString() ?? null,
       quoteValue: row.enquiry.quoteValue === null ? null : Number(row.enquiry.quoteValue),
     },
   }))

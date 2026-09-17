@@ -59,7 +59,7 @@ async function allocateNumbers(tx: Prisma.TransactionClient, companyId: string) 
 
 function toPersistable(data: EnquiryFormValues, customer: { id: string; name: string }) {
   return {
-    enquiryDate: parseCalendarDate(data.enquiryDate)!,
+    enquiryDate: parseCalendarDate(data.enquiryDate),
     salesResponsibleId: data.salesResponsibleId,
     customerId: customer.id,
     customerName: customer.name,
@@ -120,12 +120,15 @@ export async function createEnquiryAction(
       },
     })
 
+    // Automation replaces a selection; it never clears one. These four are
+    // required by the form, so falling back to what was submitted keeps that
+    // guarantee rather than quietly writing a null.
     const data: EnquiryFormValues = {
       ...raw,
-      statusValueId: enforced.STATUS ?? null,
-      locationValueId: enforced.LOCATION ?? null,
-      materialValueId: enforced.MATERIAL ?? null,
-      probabilityValueId: enforced.PROBABILITY ?? null,
+      statusValueId: enforced.STATUS ?? raw.statusValueId,
+      locationValueId: enforced.LOCATION ?? raw.locationValueId,
+      materialValueId: enforced.MATERIAL ?? raw.materialValueId,
+      probabilityValueId: enforced.PROBABILITY ?? raw.probabilityValueId,
     }
 
     const created = await prisma.$transaction(async (tx) => {
@@ -536,12 +539,15 @@ export async function updateEnquiryAction(
       },
     })
 
+    // Automation replaces a selection; it never clears one. These four are
+    // required by the form, so falling back to what was submitted keeps that
+    // guarantee rather than quietly writing a null.
     const data: EnquiryFormValues = {
       ...raw,
-      statusValueId: enforced.STATUS ?? null,
-      locationValueId: enforced.LOCATION ?? null,
-      materialValueId: enforced.MATERIAL ?? null,
-      probabilityValueId: enforced.PROBABILITY ?? null,
+      statusValueId: enforced.STATUS ?? raw.statusValueId,
+      locationValueId: enforced.LOCATION ?? raw.locationValueId,
+      materialValueId: enforced.MATERIAL ?? raw.materialValueId,
+      probabilityValueId: enforced.PROBABILITY ?? raw.probabilityValueId,
     }
 
     const resolvedCustomer = await prisma.$transaction((tx) =>

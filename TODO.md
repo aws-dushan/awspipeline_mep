@@ -62,6 +62,19 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Row hover, selected row, truncation tooltips, polished scrollbars
 - [x] Skeleton, empty, filtered-empty and error states
 
+## Mandatory fields
+
+- [x] Ten fields are mandatory on a request - S.No, Job No, Sales Responsible,
+      Customer Name, Project Name, Status, Location, Material, Enquiry Details
+      and Probability. S.No and Job No are generated on save rather than typed
+- [x] Everything else may be left blank: enquiry date, quote value, expected
+      order and billing dates, email, phone and remarks
+- [x] `enquiries.enquiryDate` made nullable so a blank date reaches the column
+      rather than failing the insert
+- [x] Automation can replace a mandatory selection but never clear it
+- [x] Asserted in both directions - the browser check fails if an agreed field
+      is unmarked *or* if an optional one is marked mandatory
+
 ## Live data
 
 - [x] Server-Sent Events channel per company, authorised like any other read

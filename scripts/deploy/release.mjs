@@ -15,11 +15,17 @@
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 
+const PUBLIC_URL = 'https://ralsnahashho.dyndns.org:1000/awsmepplms'
+
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
 
-function run(label, command, args) {
+function run(label, command, args, env) {
   console.log(`\n=== ${label}`)
-  const result = spawnSync(command, args, { stdio: 'inherit', shell: false })
+  const result = spawnSync(command, args, {
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env, ...env },
+  })
   if (result.status !== 0) {
     console.error(`\n${label} failed. The release is incomplete.`)
     process.exit(result.status ?? 1)

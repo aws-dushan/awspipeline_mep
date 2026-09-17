@@ -12,7 +12,6 @@ import {
   ArrowDown,
   ArrowUp,
   Clock3,
-  FileSpreadsheet,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -395,7 +394,11 @@ function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string):
       )
 
     case 'enquiryDate':
-      return <span className="tabular whitespace-nowrap">{formatCalendarDate(row.enquiryDate)}</span>
+      return row.enquiryDate ? (
+        <span className="tabular whitespace-nowrap">{formatCalendarDate(row.enquiryDate)}</span>
+      ) : (
+        <Empty />
+      )
 
     case 'salesResponsible':
       // The person's name, not their display code - a code like "ADMIN" reads
@@ -578,24 +581,6 @@ function RowActions({
         >
           <Pencil />
           {canEdit ? 'Edit request' : 'View only'}
-        </DropdownMenuItem>
-
-        <DropdownMenuItem
-          onSelect={() => {
-            const text = [
-              `Job ${row.jobNo}`,
-              row.customerName,
-              row.projectName,
-              row.email,
-              row.phoneNumber,
-            ]
-              .filter(Boolean)
-              .join(' · ')
-            void navigator.clipboard?.writeText(text)
-          }}
-        >
-          <FileSpreadsheet />
-          Copy row summary
         </DropdownMenuItem>
 
         {canRequestDelete ? (

@@ -277,12 +277,12 @@ export function EnquiryDrawer({
                   control={control}
                   name="salesResponsibleId"
                   render={({ field }) => (
-                    <Field label="Sales responsible" error={errors.salesResponsibleId?.message}>
+                    <Field label="Sales responsible" required error={errors.salesResponsibleId?.message}>
                       <Combobox
                         options={options.users}
                         value={field.value || null}
                         onChange={(value) => field.onChange(value ?? '')}
-                        placeholder="Unassigned"
+                        placeholder="Select a person"
                         searchPlaceholder="Search people..."
                         emptyText="No users in this company"
                       />
@@ -317,7 +317,7 @@ export function EnquiryDrawer({
                   control={control}
                   name="statusValueId"
                   render={({ field }) => (
-                    <Field label="Status" error={errors.statusValueId?.message}>
+                    <Field label="Status" required error={errors.statusValueId?.message}>
                       <Combobox
                         options={options.status}
                         value={field.value || null}
@@ -336,7 +336,7 @@ export function EnquiryDrawer({
                   control={control}
                   name="probabilityValueId"
                   render={({ field }) => (
-                    <Field label="Probability" error={errors.probabilityValueId?.message}>
+                    <Field label="Probability" required error={errors.probabilityValueId?.message}>
                       <Combobox
                         options={options.probability}
                         value={field.value || null}
@@ -355,7 +355,7 @@ export function EnquiryDrawer({
                   control={control}
                   name="locationValueId"
                   render={({ field }) => (
-                    <Field label="Location" error={errors.locationValueId?.message}>
+                    <Field label="Location" required error={errors.locationValueId?.message}>
                       <Combobox
                         options={options.location}
                         value={field.value || null}
@@ -374,7 +374,7 @@ export function EnquiryDrawer({
                   control={control}
                   name="materialValueId"
                   render={({ field }) => (
-                    <Field label="Material" error={errors.materialValueId?.message}>
+                    <Field label="Material" required error={errors.materialValueId?.message}>
                       <Combobox
                         options={options.material}
                         value={field.value || null}
@@ -398,12 +398,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="enquiryDate"
                   render={({ field }) => (
-                    <Field label="Enquiry date" required error={errors.enquiryDate?.message}>
+                    <Field label="Enquiry date" error={errors.enquiryDate?.message}>
                       <DatePicker
                         value={field.value}
                         onChange={(value) => field.onChange(value ?? '')}
                         invalid={Boolean(errors.enquiryDate)}
-                        clearable={false}
                       />
                     </Field>
                   )}
@@ -470,11 +469,13 @@ export function EnquiryDrawer({
 
                 <Field
                   label="Enquiry details"
+                  required
                   error={errors.enquiryDetails?.message}
                   className="sm:col-span-2"
                 >
                   <Textarea
                     rows={3}
+                    invalid={Boolean(errors.enquiryDetails)}
                     {...register('enquiryDetails')}
                   />
                 </Field>

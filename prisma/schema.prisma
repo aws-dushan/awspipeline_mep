@@ -363,7 +363,8 @@ model Enquiry {
   serialNo Int
   jobNo    String
 
-  enquiryDate        DateTime
+  /// Optional: a request can be logged before its enquiry date is known.
+  enquiryDate        DateTime?
   salesResponsibleId String?
   customerId         String?
   /// Denormalised copy of the customer name. Kept in sync whenever a customer

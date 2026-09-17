@@ -65,6 +65,31 @@ async function main() {
       select: { id: true },
     })
     await prisma.dropdownValue.createMany({ data: buildDefaultDropdownRows(company.id, typeIds) })
+
+    /*
+     * Location and Material ship empty - they differ by company and by trade,
+     * so an administrator adds their own. The checks below still need some,
+     * so this creates the ones they refer to rather than assuming a default
+     * catalogue that deliberately does not exist.
+     */
+    await prisma.dropdownValue.createMany({
+      data: [
+        { typeKey: 'LOCATION' as const, label: 'DXB', sortOrder: 0 },
+        { typeKey: 'LOCATION' as const, label: 'SHJ', sortOrder: 1 },
+        { typeKey: 'MATERIAL' as const, label: 'AC', sortOrder: 0 },
+      ].map((value) => ({
+        companyId: company.id,
+        typeId: typeIds[value.typeKey],
+        typeKey: value.typeKey,
+        label: value.label,
+        color: null,
+        sortOrder: value.sortOrder,
+        isActive: true,
+        isDefault: false,
+        numericValue: null,
+      })),
+    })
+
     return company.id
   }
 
@@ -430,6 +455,54 @@ async function main() {
     .findFirst({ where: { companyId: companyB, jobNo: '1001' }, select: { id: true } })
     .then((row) => row !== null)
   check('The same Job No may exist in a different company', sameJobOtherCompany)
+
+  // ==========================================================================
+  section('9. Mandatory fields')
+  // ==========================================================================
+  /*
+   * Ten fields are mandatory - S.No, Job No, Sales Responsible, Customer Name,
+   * Project Name, Status, Location, Material, Enquiry Details and Probability.
+   * Everything else may be left blank, and the enquiry date is the one that
+   * had to change in the database to allow it. The form is checked in the
+   * browser by scripts/ui-check.mjs; this checks the column underneath, so a
+   * blank date fails validation rather than the insert.
+   */
+  const withoutDate = await prisma.enquiry
+    .create({
+      data: {
+        companyId: companyA,
+        serialNo: 900,
+        jobNo: '9900',
+        enquiryDate: null,
+        customerName: 'No Date Trading',
+        projectName: 'Undated project',
+        statusValueId: statusQuoted.id,
+        locationValueId: locDxb.id,
+        materialValueId: matAc.id,
+        probabilityValueId: prob50.id,
+        enquiryDetails: 'Logged before the enquiry date was known',
+      },
+      select: { id: true, enquiryDate: true },
+    })
+    .catch(() => null)
+  check('A request can be saved without an enquiry date', withoutDate?.enquiryDate === null)
+
+  const optionalsStayNull = withoutDate
+    ? await prisma.enquiry.findUnique({
+        where: { id: withoutDate.id },
+        select: { quoteValue: true, expectedOrderDate: true, email: true, remarks: true },
+      })
+    : null
+  check(
+    'The other optional fields are left null rather than defaulted',
+    Boolean(
+      optionalsStayNull &&
+        optionalsStayNull.quoteValue === null &&
+        optionalsStayNull.expectedOrderDate === null &&
+        optionalsStayNull.email === null &&
+        optionalsStayNull.remarks === null,
+    ),
+  )
 
   // --- Cleanup -------------------------------------------------------------
   await prisma.enquiry.deleteMany({ where: { companyId: { in: [companyA, companyB] } } })
