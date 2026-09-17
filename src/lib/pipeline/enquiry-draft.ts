@@ -12,7 +12,6 @@ import type { EnquiryFormInput } from '@/lib/validation/enquiry'
  */
 export function enquiryToFormValues(record: PipelineRow): EnquiryFormInput {
   return {
-    enquiryDate: toISODate(record.enquiryDate) ?? '',
     salesResponsibleId: record.salesResponsible?.id ?? '',
     // Left empty on purpose: the customer is identified by name until the
     // picker is used, and sending a stale id would repoint the request at

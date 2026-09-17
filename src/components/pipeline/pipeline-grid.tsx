@@ -155,29 +155,75 @@ export function PipelineGrid({
    *
    * Only one row at a time: two open drafts would make "unsaved changes" a
    * question with more than one answer, and the grid has nowhere to ask it.
+   *
+   * The draft is mirrored into a ref and every change goes through
+   * `updateEditing`, so a handler can read the current draft the instant it
+   * runs. Reading it out of a `setState` updater instead looks equivalent and
+   * is not: React only runs those eagerly when the component has no pending
+   * work, so a save would sometimes see the draft and sometimes see nothing
+   * and return without doing anything at all.
    */
-  const [editing, setEditing] = React.useState<{
+  type EditState = {
     id: string
     draft: EnquiryFormInput
     errors: Record<string, string>
     saving: boolean
-  } | null>(null)
+  }
 
-  const beginEdit = React.useCallback((record: PipelineRow) => {
-    setSelectedId(record.id)
-    setEditing({ id: record.id, draft: enquiryToFormValues(record), errors: {}, saving: false })
-  }, [])
+  const [editing, setEditingState] = React.useState<EditState | null>(null)
+  const editingRef = React.useRef<EditState | null>(null)
 
-  const patchDraft = React.useCallback((patch: DraftPatch) => {
-    setEditing((current) => {
-      if (!current) return current
-      // Clear the error on anything just touched: leaving a cell red after it
-      // has been corrected reads as a second, phantom problem.
-      const errors = { ...current.errors }
-      for (const key of Object.keys(patch)) delete errors[key]
-      return { ...current, draft: { ...current.draft, ...patch }, errors }
-    })
-  }, [])
+  const updateEditing = React.useCallback(
+    (next: EditState | null | ((current: EditState | null) => EditState | null)) => {
+      const resolved = typeof next === 'function' ? next(editingRef.current) : next
+      editingRef.current = resolved
+      setEditingState(resolved)
+    },
+    [],
+  )
+
+  const beginEdit = React.useCallback(
+    (record: PipelineRow) => {
+      setSelectedId(record.id)
+      updateEditing({ id: record.id, draft: enquiryToFormValues(record), errors: {}, saving: false })
+    },
+    [updateEditing],
+  )
+
+  const cancelEdit = React.useCallback(() => updateEditing(null), [updateEditing])
+
+  const patchDraft = React.useCallback(
+    (patch: DraftPatch) => {
+      updateEditing((current) => {
+        if (!current) return current
+        // Clear the error on anything just touched: leaving a cell red after it
+        // has been corrected reads as a second, phantom problem.
+        const errors = { ...current.errors }
+        for (const key of Object.keys(patch)) delete errors[key]
+        return { ...current, draft: { ...current.draft, ...patch }, errors }
+      })
+    },
+    [updateEditing],
+  )
+
+  const saveEdit = React.useCallback(
+    async (record: PipelineRow) => {
+      const current = editingRef.current
+      if (!current || current.saving || current.id !== record.id) return
+
+      updateEditing({ ...current, saving: true })
+      const result = await onInlineSave(record, current.draft)
+
+      if (result.ok) {
+        updateEditing(null)
+        return
+      }
+      updateEditing((latest) =>
+        latest ? { ...latest, saving: false, errors: result.fieldErrors ?? {} } : latest,
+      )
+    },
+    [onInlineSave, updateEditing],
+  )
 
   /**
    * Escape cancels, Enter saves - from anywhere in the row.
@@ -185,8 +231,7 @@ export function PipelineGrid({
    * Listened for on the window rather than on the row, because the pickers
    * render their menus in a portal outside the table: a handler on the row
    * never sees a key pressed while a dropdown is open. An open menu gets first
-   * refusal on both keys, since there Escape closes the menu and Enter chooses
-   * the highlighted option.
+   * refusal on both keys, and so does a textarea, where Enter means a new line.
    */
   const editingId = editing?.id ?? null
   React.useEffect(() => {
@@ -196,38 +241,19 @@ export function PipelineGrid({
       if (event.defaultPrevented) return
       if (document.querySelector('[data-radix-popper-content-wrapper]')) return
 
+      const target = event.target as HTMLElement | null
+      if (event.key === 'Enter' && target?.tagName === 'TEXTAREA') return
+
       const record = rows.find((candidate) => candidate.id === editingId)
       if (!record) return
 
       event.preventDefault()
-      if (event.key === 'Escape') setEditing(null)
+      if (event.key === 'Escape') cancelEdit()
       else void saveEditRef.current?.(record)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editingId, rows])
-
-  const saveEdit = React.useCallback(
-    async (record: PipelineRow) => {
-      let values: EnquiryFormInput | null = null
-      setEditing((current) => {
-        if (!current || current.saving) return current
-        values = current.draft
-        return { ...current, saving: true }
-      })
-      if (!values) return
-
-      const result = await onInlineSave(record, values)
-      if (result.ok) {
-        setEditing(null)
-        return
-      }
-      setEditing((current) =>
-        current ? { ...current, saving: false, errors: result.fieldErrors ?? {} } : current,
-      )
-    },
-    [onInlineSave],
-  )
+  }, [editingId, rows, cancelEdit])
 
   const saveEditRef = React.useRef(saveEdit)
   React.useEffect(() => {
@@ -435,7 +461,7 @@ export function PipelineGrid({
                             aria-label="Cancel editing"
                             onClick={(event) => {
                               event.stopPropagation()
-                              setEditing(null)
+                              cancelEdit()
                             }}
                             className="text-ink-400 hover:text-ink-700"
                           >
@@ -704,9 +730,21 @@ function Empty() {
 /** Truncates with a tooltip, but only when the text is actually long. */
 function Truncated({ value, className }: { value: string | null; className?: string }) {
   if (!value) return <Empty />
-  const long = value.length > 28
-  const node = <span className={cn('block truncate', className)}>{value}</span>
-  return long ? <Tooltip content={value}>{node}</Tooltip> : node
+
+  /*
+   * These fields can hold several lines. A row is one line tall, so the cell
+   * shows the text with its breaks turned into spaces - otherwise only the
+   * first line appears and the rest reads as missing. The tooltip keeps the
+   * breaks, which is where the text is actually read.
+   */
+  const multiline = value.includes('\n')
+  const inline = multiline ? value.replace(/\s*\n\s*/g, ' · ') : value
+  const node = <span className={cn('block truncate', className)}>{inline}</span>
+  if (!multiline && inline.length <= 28) return node
+
+  return (
+    <Tooltip content={<span className="block whitespace-pre-wrap">{value}</span>}>{node}</Tooltip>
+  )
 }
 
 function RowActions({

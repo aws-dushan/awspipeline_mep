@@ -30,7 +30,6 @@ import { Input, Textarea } from '@/components/ui/input'
 import { Avatar } from '@/components/ui/primitives'
 import type { PipelineRow } from '@/lib/database/enquiry-repository'
 import { enquiryToFormValues } from '@/lib/pipeline/enquiry-draft'
-import { toISODate } from '@/lib/format'
 import { applyAutomationRules, type AutomationRule } from '@/lib/pipeline/automation'
 import { cn } from '@/lib/utils'
 import {
@@ -84,7 +83,6 @@ export function EnquiryDrawer({
     if (!record) {
       return {
         ...EMPTY_ENQUIRY_FORM,
-        enquiryDate: toISODate(new Date()) ?? '',
         salesResponsibleId: defaultSalesResponsibleId ?? '',
         statusValueId: options.status[0]?.value ?? '',
       }
@@ -402,20 +400,6 @@ export function EnquiryDrawer({
             {/* --- Commercials --------------------------------------------- */}
             <Section title="Commercials">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Controller
-                  control={control}
-                  name="enquiryDate"
-                  render={({ field }) => (
-                    <Field label="Enquiry date" error={errors.enquiryDate?.message}>
-                      <DatePicker
-                        value={field.value}
-                        onChange={(value) => field.onChange(value ?? '')}
-                        invalid={Boolean(errors.enquiryDate)}
-                      />
-                    </Field>
-                  )}
-                />
-
                 <Field label={`Quote value (${currency})`} error={errors.quoteValue?.message}>
                   <Input
                     inputMode="decimal"
@@ -521,7 +505,6 @@ export function EnquiryDrawer({
 
 /** Human labels for the error summary, so it never shows a field name. */
 const ENQUIRY_FIELD_LABELS: Record<string, string> = {
-  enquiryDate: 'Enquiry date',
   salesResponsibleId: 'Sales responsible',
   customerName: 'Customer',
   projectName: 'Project name',

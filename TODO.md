@@ -92,6 +92,12 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Job No has no inline editor - it is issued by the server and must stay
       unique within a company
 - [x] Enter saves, Escape cancels, and an open picker gets first refusal on both
+- [x] Enquiry Details and Remarks edit as textareas in the row; Enter inserts a
+      line there rather than saving, and a multi-line value renders on one line
+      in the grid with the breaks kept in its tooltip
+- [x] The enquiry date is taken from the clock when a request is created. It is
+      not on the form and cannot be edited afterwards - it records when the
+      request came in, which is not something a later edit revises
 
 ## Live data
 

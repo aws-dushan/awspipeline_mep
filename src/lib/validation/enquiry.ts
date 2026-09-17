@@ -61,13 +61,14 @@ const optionalCurrency = z
 /**
  * The ten fields a request cannot be saved without.
  *
- * S.No and Job No are not among the form's inputs - both are generated on
- * save - but they are mandatory in the same sense: every record has them.
+ * Job No is not among the form's inputs - it is generated on save - but it is
+ * mandatory in the same sense: every record has one. So is the enquiry date,
+ * which the server takes from the clock when the request is created and never
+ * revises; it is a record of when the request came in, not a field to choose.
  * Everything else here is genuinely optional and may be left blank.
  */
 export const enquiryFormSchema = z
   .object({
-    enquiryDate: optionalCalendarDate,
     salesResponsibleId: requiredId('Select who is responsible for this request'),
     /**
      * The picker sends an existing customer id, or leaves it empty and sends
@@ -172,7 +173,6 @@ export const updateCustomerSchema = createCustomerSchema.extend({
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>
 
 export const EMPTY_ENQUIRY_FORM: EnquiryFormInput = {
-  enquiryDate: '',
   salesResponsibleId: '',
   customerId: '',
   customerName: '',

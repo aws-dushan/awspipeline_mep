@@ -199,13 +199,40 @@ async function main() {
     const editors = await row.locator('input, [role="combobox"]').count()
     if (editors < 10) throw new Error(`only ${editors} editors appeared in the row`)
 
-    // Job No is issued by the server, so it has no editor even while editing.
-    const jobNoCell = row.locator('td').nth(1)
-    if (await jobNoCell.locator('input').count()) {
-      throw new Error('Job No is editable and should not be')
+    // Job No is issued by the server and the enquiry date records when the
+    // request came in, so neither gets an editor.
+    for (const [index, label] of [
+      [1, 'Job No'],
+      [2, 'Enquiry Date'],
+    ]) {
+      const cell = row.locator('td').nth(index)
+      if (await cell.locator('input, textarea, [role="combobox"]').count()) {
+        throw new Error(`${label} is editable and should not be`)
+      }
     }
 
-    const project = row.locator('input').nth(1)
+    // Enquiry details and Remarks hold paragraphs, so they edit as textareas
+    // and Enter inserts a line rather than saving the row.
+    const areas = await row.locator('textarea').count()
+    if (areas < 2) {
+      throw new Error(`expected Enquiry details and Remarks to be textareas, found ${areas}`)
+    }
+    const remarks = row.locator('textarea').last()
+    await remarks.fill('first line')
+    await remarks.press('Enter')
+    await remarks.type('second line')
+    const typed = await remarks.inputValue()
+    if (!typed.includes('\n')) throw new Error('Enter did not insert a line break')
+    if (!(await page.locator('button[aria-label="Save changes"]').count())) {
+      throw new Error('Enter saved the row instead of inserting a line break')
+    }
+    await remarks.fill('')
+
+    // By column, not by input index: which cells carry an editor changes as
+    // fields become read-only, and an index quietly starts editing a
+    // different field when it does.
+    const PROJECT_NAME_CELL = 5
+    const project = row.locator('td').nth(PROJECT_NAME_CELL).locator('input')
     const before = await project.inputValue()
     const after = before.endsWith(' *') ? before.slice(0, -2) : `${before} *`
     await project.fill(after)
@@ -378,7 +405,6 @@ async function main() {
       'Probability',
     ]
     const OPTIONAL = [
-      'Enquiry date',
       'Quote value',
       'Expected order date',
       'Expected billing date',
@@ -405,6 +431,10 @@ async function main() {
       const field = find(name)
       if (field?.required) throw new Error(`"${name}" is marked mandatory and should not be`)
     }
+
+    // The enquiry date is taken from the clock when the request is created and
+    // is never chosen, so it must not appear on the form at all.
+    if (find('Enquiry date')) throw new Error('the enquiry date is still a form field')
 
     // And the rules are enforced, not just advertised: saving an empty form
     // must be refused with the fields named.

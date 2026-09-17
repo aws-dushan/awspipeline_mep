@@ -5,7 +5,7 @@ import * as React from 'react'
 import type { FilterOptions } from '@/components/pipeline/filters/column-filter'
 import { Combobox } from '@/components/ui/combobox'
 import { DatePicker } from '@/components/ui/date-picker'
-import { Input } from '@/components/ui/input'
+import { Input, Textarea } from '@/components/ui/input'
 import type { PipelineColumn } from '@/lib/pipeline/columns'
 import type { EnquiryFormInput } from '@/lib/validation/enquiry'
 
@@ -19,9 +19,10 @@ export type DraftPatch = Partial<EnquiryFormInput>
  * reflowed on double-click would move every other row out from under the
  * pointer.
  *
- * Job No has no editor. It is issued by the server from the company's counter,
- * and letting it be typed over would break the guarantee that it is unique
- * within a company.
+ * Two columns have no editor. Job No is issued by the server from the
+ * company's counter, and letting it be typed over would break the guarantee
+ * that it is unique within a company. The enquiry date records when the
+ * request came in, which is not something a later edit gets to revise.
  */
 export function InlineCellEditor({
   column,
@@ -75,12 +76,27 @@ export function InlineCellEditor({
     />
   )
 
+  /*
+   * Free text that people write paragraphs into. One row tall by default so
+   * the grid keeps its rhythm, but it scrolls and accepts line breaks - Enter
+   * inserts one here rather than saving the row.
+   */
+  const longText = (key: keyof EnquiryFormInput, placeholder?: string) => (
+    <Textarea
+      rows={1}
+      placeholder={placeholder}
+      className="h-8 min-h-8 w-full resize-none py-1.5 text-[13px] leading-snug"
+      invalid={invalid}
+      value={String(draft[key] ?? '')}
+      onChange={(event) => onPatch({ [key]: event.target.value } as DraftPatch)}
+    />
+  )
+
   switch (column.key) {
     case 'jobNo':
+    case 'enquiryDate':
       return null
 
-    case 'enquiryDate':
-      return date('enquiryDate')
     case 'expectedOrderDate':
       return date('expectedOrderDate')
     case 'expectedBillingDate':
@@ -133,12 +149,13 @@ export function InlineCellEditor({
 
     case 'projectName':
       return text('projectName')
-    case 'enquiryDetails':
-      return text('enquiryDetails')
     case 'phoneNumber':
       return text('phoneNumber')
+
+    case 'enquiryDetails':
+      return longText('enquiryDetails')
     case 'remarks':
-      return text('remarks')
+      return longText('remarks')
 
     default:
       return null
@@ -147,7 +164,6 @@ export function InlineCellEditor({
 
 /** Which form field a column edits, for mapping validation errors onto cells. */
 export const FIELD_BY_COLUMN: Partial<Record<PipelineColumn['key'], keyof EnquiryFormInput>> = {
-  enquiryDate: 'enquiryDate',
   salesResponsible: 'salesResponsibleId',
   customerName: 'customerName',
   projectName: 'projectName',

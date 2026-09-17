@@ -63,7 +63,6 @@ async function allocateNumbers(tx: Prisma.TransactionClient, companyId: string) 
 
 function toPersistable(data: EnquiryFormValues, customer: { id: string; name: string }) {
   return {
-    enquiryDate: parseCalendarDate(data.enquiryDate),
     salesResponsibleId: data.salesResponsibleId,
     customerId: customer.id,
     customerName: customer.name,
@@ -152,6 +151,9 @@ export async function createEnquiryAction(
           companyId: company.id,
           serialNo,
           jobNo,
+          // When the request came in, taken from the clock rather than from
+          // the form. It is a record of an event, not a field to choose.
+          enquiryDate: new Date(),
           ...toPersistable(data, customer),
           createdById: user.id,
           updatedById: user.id,
@@ -390,7 +392,6 @@ export async function listCustomersAction(companyId: string, search?: string) {
 
 /** Fields tracked in the audit diff, with the labels shown in the history. */
 const AUDITED_FIELDS = [
-  { field: 'enquiryDate', label: 'Enquiry Date' },
   { field: 'salesResponsible', label: 'Sales Responsible' },
   { field: 'customerName', label: 'Customer Name' },
   { field: 'projectName', label: 'Project Name' },
@@ -416,7 +417,6 @@ async function toAuditShape(
   companyId: string,
   currency: string,
   values: {
-    enquiryDate: Date | null
     salesResponsibleId: string | null
     customerName: string
     projectName: string | null
@@ -459,7 +459,6 @@ async function toAuditShape(
   const isoDay = (date: Date | null) => (date ? date.toISOString().slice(0, 10) : null)
 
   return {
-    enquiryDate: isoDay(values.enquiryDate),
     salesResponsible: salesUser?.name ?? null,
     customerName: values.customerName,
     projectName: values.projectName,
