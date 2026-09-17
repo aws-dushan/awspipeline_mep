@@ -247,6 +247,54 @@ async function main() {
     if (!text.includes(after.trim())) throw new Error('the edit did not persist into the row')
   })
 
+  /*
+   * Double-clicking must not move the grid.
+   *
+   * Focusing an editor scrolls it into view, so autofocusing a fixed column
+   * yanked a horizontally scrolled grid back towards the start of the row the
+   * moment you double-clicked - losing the place you had scrolled to. Raw
+   * mouse events here on purpose: Playwright's own click scrolls the target
+   * into view first, which would mask exactly what is being measured.
+   */
+  await step('editing a row does not move the grid sideways', async () => {
+    const scroller = 'div.scroll-polished'
+    await page.mouse.move(700, 400)
+    await page.mouse.wheel(900, 0)
+    await page.waitForTimeout(500)
+
+    const read = () =>
+      page.evaluate((sel) => Math.round(document.querySelector(sel).scrollLeft), scroller)
+    const before = await read()
+    if (before < 100) throw new Error('the grid did not scroll, so nothing is being tested')
+
+    const box = await page.locator('table tbody tr').first().boundingBox()
+    await page.mouse.dblclick(700, box.y + box.height / 2)
+    await page.waitForTimeout(800)
+
+    const after = await read()
+    if (after !== before) throw new Error(`the grid moved from ${before} to ${after}`)
+
+    // The caret belongs in the cell that was clicked, not in a fixed one.
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement
+      return el?.closest('td')?.dataset?.column ?? null
+    })
+    const clicked = await page.evaluate(
+      ([x, y]) => document.elementFromPoint(x, y)?.closest('td')?.dataset?.column ?? null,
+      [700, box.y + box.height / 2],
+    )
+    if (focused && clicked && focused !== clicked) {
+      throw new Error(`focus landed in ${focused} after clicking ${clicked}`)
+    }
+
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400)
+    await page.evaluate((sel) => {
+      document.querySelector(sel).scrollLeft = 0
+    }, scroller)
+    await page.waitForTimeout(300)
+  })
+
   await step('escape abandons an inline edit', async () => {
     const row = page.locator('table tbody tr').first()
     await row.dblclick()

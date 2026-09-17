@@ -49,16 +49,6 @@ import { cn } from '@/lib/utils'
 
 const SORTABLE = new Set<string>(SORTABLE_KEYS)
 
-/**
- * Where the caret lands when a row is opened for editing.
- *
- * The leftmost editable *text* column. The pickers to its left open on click
- * rather than on focus, so starting there would leave the caret nowhere
- * visible; Job No, further left again, is issued by the server and has no
- * editor at all.
- */
-const FIRST_EDITABLE_COLUMN: PipelineColumnKey = 'projectName'
-
 /** Width of the pinned row-actions column, in pixels. */
 const ACTIONS_WIDTH = 52
 
@@ -168,6 +158,8 @@ export function PipelineGrid({
     draft: EnquiryFormInput
     errors: Record<string, string>
     saving: boolean
+    /** The cell that was double-clicked, which is where the caret goes. */
+    focusColumn: PipelineColumnKey | null
   }
 
   const [editing, setEditingState] = React.useState<EditState | null>(null)
@@ -182,10 +174,24 @@ export function PipelineGrid({
     [],
   )
 
+  /**
+   * Open a row for editing, with the caret in the cell that was clicked.
+   *
+   * Not in the first editable cell: focusing one that is off-screen scrolls it
+   * into view, which yanks a horizontally scrolled grid back to the start of
+   * the row the moment you double-click. The cell under the pointer is by
+   * definition already visible.
+   */
   const beginEdit = React.useCallback(
-    (record: PipelineRow) => {
+    (record: PipelineRow, focusColumn: PipelineColumnKey | null) => {
       setSelectedId(record.id)
-      updateEditing({ id: record.id, draft: enquiryToFormValues(record), errors: {}, saving: false })
+      updateEditing({
+        id: record.id,
+        draft: enquiryToFormValues(record),
+        errors: {},
+        saving: false,
+        focusColumn,
+      })
     },
     [updateEditing],
   )
@@ -410,9 +416,13 @@ export function PipelineGrid({
                 <tr
                   key={record.id}
                   onClick={() => !rowEdit && setSelectedId(record.id)}
-                  onDoubleClick={() => {
+                  onDoubleClick={(event) => {
                     if (rowEdit || !canEdit(record)) return
-                    beginEdit(record)
+                    const cell = (event.target as HTMLElement).closest('td')
+                    const clicked = (cell?.dataset.column ?? null) as PipelineColumnKey | null
+                    // A column with no editor - Job No, the enquiry date, the
+                    // actions cell - opens the row without claiming the caret.
+                    beginEdit(record, clicked && FIELD_BY_COLUMN[clicked] ? clicked : null)
                   }}
                   className={cn(
                     'group/row cursor-default transition-colors duration-100',
@@ -487,6 +497,7 @@ export function PipelineGrid({
                     return (
                       <td
                         key={cell.id}
+                        data-column={column.key}
                         style={{
                           width: column.width,
                           minWidth: column.minWidth,
@@ -516,7 +527,7 @@ export function PipelineGrid({
                             draft={rowEdit.draft}
                             options={filterOptions}
                             currency={currency}
-                            autoFocus={column.key === FIRST_EDITABLE_COLUMN}
+                            autoFocus={column.key === rowEdit.focusColumn}
                             invalid={Boolean(rowEdit.errors[FIELD_BY_COLUMN[column.key]!])}
                             onPatch={patchDraft}
                           />

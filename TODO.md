@@ -92,6 +92,8 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Job No has no inline editor - it is issued by the server and must stay
       unique within a company
 - [x] Enter saves, Escape cancels, and an open picker gets first refusal on both
+- [x] Double-clicking puts the caret in the cell that was clicked and leaves the
+      horizontal scroll where it was
 - [x] Enquiry Details and Remarks edit as textareas in the row; Enter inserts a
       line there rather than saving, and a multi-line value renders on one line
       in the grid with the breaks kept in its tooltip

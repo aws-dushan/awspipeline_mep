@@ -41,9 +41,35 @@ export function InlineCellEditor({
   autoFocus?: boolean
   onPatch: (patch: DraftPatch) => void
 }) {
+  /*
+   * Focus without scrolling.
+   *
+   * React's `autoFocus` calls plain `.focus()`, which brings the element into
+   * view - and in a horizontally scrolled grid that means jumping to wherever
+   * the cell happens to be. The cell here is the one under the pointer, so it
+   * is already visible and the scroll must not move at all. Once per mount,
+   * not once per render, or every keystroke would reselect the text.
+   */
+  const focusRef = React.useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
+  const claimed = React.useRef(false)
+  React.useEffect(() => {
+    if (!autoFocus || claimed.current) return
+    claimed.current = true
+    focusRef.current?.focus({ preventScroll: true })
+    focusRef.current?.select()
+  }, [autoFocus])
+
+  // One ref for two element types, so the callback narrows what the object
+  // form cannot.
+  const takeFocus = autoFocus
+    ? (element: HTMLInputElement | HTMLTextAreaElement | null) => {
+        focusRef.current = element
+      }
+    : undefined
+
   const text = (key: keyof EnquiryFormInput, extra?: React.ComponentProps<typeof Input>) => (
     <Input
-      autoFocus={autoFocus}
+      ref={takeFocus}
       className="h-8 w-full text-[13px]"
       invalid={invalid}
       value={String(draft[key] ?? '')}
@@ -83,6 +109,7 @@ export function InlineCellEditor({
    */
   const longText = (key: keyof EnquiryFormInput, placeholder?: string) => (
     <Textarea
+      ref={takeFocus}
       rows={1}
       placeholder={placeholder}
       className="h-8 min-h-8 w-full resize-none py-1.5 text-[13px] leading-snug"
