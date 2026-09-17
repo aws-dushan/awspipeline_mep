@@ -18,8 +18,6 @@ export type BrandConfig = {
   logoDark: string
   /** Square mark used for favicons / compact spaces. */
   mark: string
-  /** Browser tab title suffix. */
-  titleSuffix: string
   /** Primary brand colour. Must stay in sync with `--brand-*` in globals.css. */
   primary: string
   /** Secondary accent used in gradients and glows. */
@@ -32,11 +30,10 @@ export type BrandConfig = {
 
 export const brand: BrandConfig = {
   name: 'AWS Distribution',
-  productName: 'Pipeline Management System',
+  productName: 'Pipeline Tracker',
   logoLight: withBasePath('/brand/mark-light.svg'),
   logoDark: withBasePath('/brand/mark.svg'),
   mark: withBasePath('/brand/mark.svg'),
-  titleSuffix: 'Pipeline',
   primary: '#302078',
   accent: '#E8681A',
   defaultCurrency: 'AED',

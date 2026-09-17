@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---------------------------------------------------------------------------
-# Pipeline Management System - production image
+# Pipeline Tracker - production image
 #
 # Three stages so the shipped layer carries neither the source nor the build
 # toolchain: install, build, run. The runtime stage is Next's `standalone`
@@ -10,7 +10,7 @@
 #
 # The base path is a BUILD argument, not a runtime one. Next compiles the
 # prefix into every asset URL, every Server Action endpoint and every <Link>
-# as it builds, so an image built for /awsmepplms cannot be served anywhere
+# as it builds, so an image built for /awsmepplt cannot be served anywhere
 # else. It must match the nginx `location` on the edge; changing one alone
 # produces a page whose HTML loads and whose scripts all 404.
 # ---------------------------------------------------------------------------

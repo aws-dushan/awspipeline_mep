@@ -1,5 +1,5 @@
 /**
- * Deploy the Pipeline Management System to AWS-App.
+ * Deploy the Pipeline Tracker to AWS-App.
  *
  *   node scripts/deploy/push.mjs [--no-build]
  *
@@ -10,7 +10,7 @@
  * edge.
  *
  * It is safe to run repeatedly. Nothing outside /opt/aws/mepplms and the one
- * file /opt/aws/edge/apps/awsmepplms.conf is touched - in particular
+ * file /opt/aws/edge/apps/awsmepplt.conf is touched - in particular
  * docker-compose.app.yml, which the infrastructure sync owns, is left alone.
  *
  * Secrets are read from the local `.env` and `.deploy.env`, both git-ignored,
@@ -23,9 +23,11 @@ import { mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { loadEnv, connectApp, run } from './remote.mjs'
 
 const REMOTE_DIR = '/opt/aws/mepplms'
-const EDGE_CONF = '/opt/aws/edge/apps/awsmepplms.conf'
+const EDGE_CONF = '/opt/aws/edge/apps/awsmepplt.conf'
 const EDGE_CONTAINER = 'aws-edge-nginx-1'
-const BASE_PATH = '/awsmepplms'
+/** The container nginx proxies to. Its name is internal and does not change. */
+const CONTAINER = 'mepplms'
+const BASE_PATH = '/awsmepplt'
 const PUBLIC_URL = `https://ralsnahashho.dyndns.org:1000${BASE_PATH}`
 
 function localEnv() {
@@ -173,7 +175,22 @@ try {
   if (up.code !== 0) throw new Error('docker compose up failed')
 
   step('install edge configuration')
-  await putText(app, readFileSync('deploy/awsmepplms.conf', 'utf8'), EDGE_CONF)
+  /*
+   * Retire any earlier prefix first.
+   *
+   * The path is compiled into the image, so after a rename the old location
+   * still proxies here and still answers - with HTML whose every asset 404s,
+   * which is worse than a clean 404. Matching on the upstream rather than on a
+   * remembered filename means this keeps working however many times the prefix
+   * changes, and touches no other application's config.
+   */
+  await run(
+    app,
+    `grep -l '${CONTAINER}:3000' /opt/aws/edge/apps/*.conf 2>/dev/null ` +
+      `| grep -vx '${EDGE_CONF}' | xargs -r rm -f -- ` +
+      `&& echo "retired the previous prefix" || true`,
+  )
+  await putText(app, readFileSync('deploy/awsmepplt.conf', 'utf8'), EDGE_CONF)
   const test = await run(app, `docker exec ${EDGE_CONTAINER} nginx -t`)
   if (test.code !== 0) throw new Error('nginx rejected the configuration; it was NOT reloaded')
   await run(app, `docker exec ${EDGE_CONTAINER} nginx -s reload`)

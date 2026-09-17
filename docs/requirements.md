@@ -137,7 +137,7 @@ LEFT SIDE:
 - company logo
 - subtle premium animation
 - short text such as:
-  "Pipeline Management System"
+  "Pipeline Tracker"
 
 RIGHT SIDE:
 - modern animated login card
@@ -1105,7 +1105,7 @@ Primary focus should be:
 
 Company Logo
 
-Pipeline Management System
+Pipeline Tracker
 
 Login
 

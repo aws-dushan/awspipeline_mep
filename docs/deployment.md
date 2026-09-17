@@ -3,7 +3,7 @@
 The application runs on **AWS-App** as a Docker container behind the shared
 nginx edge, and reads its data from the PostgreSQL instance on **AWS-Data**.
 
-    https://ralsnahashho.dyndns.org:1000/awsmepplms
+    https://ralsnahashho.dyndns.org:1000/awsmepplt
 
 ## Shape of it
 
@@ -13,7 +13,7 @@ nginx edge, and reads its data from the PostgreSQL instance on **AWS-Data**.
 | Compose project `aws-mepplms` | `/opt/aws/mepplms/docker-compose.yml` |
 | Runtime secrets | `/opt/aws/mepplms/.env` (mode 600, written by the deploy script) |
 | Source for the image build | `/opt/aws/mepplms/src` |
-| Edge routing | `/opt/aws/edge/apps/awsmepplms.conf`, included by the existing server block |
+| Edge routing | `/opt/aws/edge/apps/awsmepplt.conf`, included by the existing server block |
 | Database | `pipeline_mep` on the AWS-Data cluster, role `pipeline_app` (address in `.deploy.env`) |
 
 It is a compose project of its own rather than a service inside
@@ -52,11 +52,11 @@ printed or committed.
 ## The base path is compiled in
 
 Next writes the prefix into every asset URL, every Server Action endpoint and
-every `<Link>` **at build time**. So `/awsmepplms` appears in three places
+every `<Link>` **at build time**. So `/awsmepplt` appears in three places
 that must agree:
 
 1. `APP_BASE_PATH` — the build argument in `deploy/docker-compose.yml`.
-2. The `location` blocks in `deploy/awsmepplms.conf`. The prefix is passed
+2. The `location` blocks in `deploy/awsmepplt.conf`. The prefix is passed
    through to the container untouched, never stripped.
 3. Nothing at runtime. An image built for one prefix cannot be served at
    another.
@@ -127,7 +127,7 @@ after copying `.next/static` and `public` beside it.
 
 ## Verifying
 
-    BASE_URL=https://ralsnahashho.dyndns.org:1000/awsmepplms node scripts/ui-check.mjs
+    BASE_URL=https://ralsnahashho.dyndns.org:1000/awsmepplt node scripts/ui-check.mjs
 
 Drives a real browser through every screen and fails on any console error,
 page error or failed request. `UI_USER` and `UI_PASS` (or

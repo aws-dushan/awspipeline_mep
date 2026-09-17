@@ -126,12 +126,42 @@ export function EnquiryDrawer({
     mode: 'onBlur',
   })
 
+  /**
+   * The contact details last put there by a customer selection.
+   *
+   * Email and phone are prefilled from the chosen customer, but they belong to
+   * the enquiry, not to the customer - someone may deliberately type a site
+   * contact for this one job. So picking a different customer replaces them
+   * only while they are still what the previous customer put there. Anything
+   * typed by hand survives.
+   *
+   * Seeded from the form's own defaults, so on an existing request the details
+   * that were saved with it count as "not typed in this session" and do follow
+   * a change of customer.
+   */
+  const prefilledContact = React.useRef({ email: '', phoneNumber: '' })
+
   React.useEffect(() => {
     if (open) {
       reset(defaultValues)
+      prefilledContact.current = {
+        email: String(defaultValues.email ?? ''),
+        phoneNumber: String(defaultValues.phoneNumber ?? ''),
+      }
       setAutomationNote(null)
     }
   }, [open, defaultValues, reset])
+
+  const applyCustomerContact = React.useCallback(
+    (field: 'email' | 'phoneNumber', value: string | null) => {
+      const current = String(getValues(field) ?? '')
+      if (current !== '' && current !== prefilledContact.current[field]) return
+      const next = value ?? ''
+      setValue(field, next, { shouldDirty: true })
+      prefilledContact.current[field] = next
+    },
+    [getValues, setValue],
+  )
 
   /**
    * Apply the admin's Status/Probability linkage as the user picks, so the
@@ -245,14 +275,8 @@ export function EnquiryDrawer({
                         onSelect={(customer) => {
                           field.onChange(customer.name)
                           setValue('customerId', customer.id, { shouldDirty: true })
-                          // Fill contact details from the customer record when
-                          // the enquiry does not already have its own.
-                          if (customer.email && !getValues('email')) {
-                            setValue('email', customer.email, { shouldDirty: true })
-                          }
-                          if (customer.phone && !getValues('phoneNumber')) {
-                            setValue('phoneNumber', customer.phone, { shouldDirty: true })
-                          }
+                          applyCustomerContact('email', customer.email)
+                          applyCustomerContact('phoneNumber', customer.phone)
                         }}
                         onCreated={onCustomerCreated}
                       />

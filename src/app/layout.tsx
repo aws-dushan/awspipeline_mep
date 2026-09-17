@@ -14,9 +14,12 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  // The product name is the tab title, and every page keeps it after its own
+  // name - a tab reading "Audit history" alone says nothing about which of a
+  // dozen open systems it belongs to.
   title: {
-    default: `${brand.name} ${brand.titleSuffix}`,
-    template: `%s · ${brand.name}`,
+    default: brand.productName,
+    template: `%s · ${brand.productName}`,
   },
   description: `${brand.productName} for ${brand.name}.`,
   // SVG first for crisp tabs; the PNGs cover Safari and "add to home screen",

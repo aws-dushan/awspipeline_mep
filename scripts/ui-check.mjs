@@ -104,6 +104,13 @@ async function main() {
     )
   })
 
+  const PRODUCT = 'Pipeline Tracker'
+
+  await step('browser tab is named for the product', async () => {
+    const title = await page.title()
+    if (title !== PRODUCT) throw new Error(`tab reads "${title}"`)
+  })
+
   let companyId
   let createdUserStamp = null
 
@@ -154,6 +161,11 @@ async function main() {
    * route - saving stops working while every screen still renders. It looks
    * like a database fault and is not one, so it is asserted directly.
    */
+  await step('inner pages keep the product in the tab', async () => {
+    const title = await page.title()
+    if (!title.endsWith(PRODUCT)) throw new Error(`tab reads "${title}"`)
+  })
+
   await step('address bar keeps the deployment prefix', async () => {
     const prefix = new URL(BASE).pathname.replace(/\/$/, '')
     await page.click('table tbody tr')
@@ -331,8 +343,47 @@ async function main() {
     if (summary === 0) throw new Error('an empty request was not refused')
   })
 
+  /*
+   * Picking a customer prefills the contact details. Picking a *different* one
+   * has to replace them - the first version only filled an empty field, so
+   * changing your mind about the customer left the previous one's email and
+   * phone sitting on the request.
+   */
+  await step('contact details follow the customer', async () => {
+    const dialog = page.locator('[role="dialog"]')
+    const email = dialog.locator('input[name="email"]')
+
+    const pick = async (index) => {
+      // By position, not by label: the trigger's text becomes the selected
+      // customer's name, so matching on the placeholder works only once.
+      await dialog.locator('[role="combobox"]').first().click()
+      await page.waitForTimeout(400)
+      const rows = page.locator('[data-radix-popper-content-wrapper] button')
+      const option = rows.nth(index)
+      const name = (await option.innerText()).split('\n')[0].trim()
+      await option.click()
+      await page.waitForTimeout(500)
+      return name
+    }
+
+    const first = await pick(0)
+    const firstEmail = await email.inputValue()
+    const second = await pick(1)
+    const secondEmail = await email.inputValue()
+
+    if (first === second) throw new Error('the two picks landed on the same customer')
+    if (firstEmail === '' && secondEmail === '') {
+      throw new Error('neither customer prefilled an email - cannot tell if it follows')
+    }
+    if (firstEmail === secondEmail) {
+      throw new Error(`email stayed "${firstEmail}" after switching from ${first} to ${second}`)
+    }
+  })
+
   await step('inline customer create asks for contact details', async () => {
-    await page.click('button:has-text("Search or add a customer")')
+    // By position: the previous step selected a customer, so the trigger now
+    // shows that name rather than the placeholder.
+    await page.locator('[role="dialog"] [role="combobox"]').first().click()
     await page.waitForTimeout(400)
     await page.keyboard.type('Zebra Test Contracting')
     await page.waitForTimeout(500)

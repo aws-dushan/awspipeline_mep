@@ -1,4 +1,4 @@
-# AWS Distribution — Pipeline Management System
+# AWS Distribution — Pipeline Tracker
 
 A multi-company sales pipeline and enquiry tracker. Spreadsheet-speed data entry
 with the access control, approval workflow and audit history of an enterprise

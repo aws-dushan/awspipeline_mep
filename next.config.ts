@@ -2,7 +2,7 @@ import type { NextConfig } from 'next'
 
 /**
  * The prefix this instance is served under. Empty locally; set to
- * "/awsmepplms" by the Docker build, because the deployment shares one nginx
+ * "/awsmepplt" by the Docker build, because the deployment shares one nginx
  * with several applications and each owns a path rather than a hostname.
  */
 const basePath = process.env.APP_BASE_PATH || ''

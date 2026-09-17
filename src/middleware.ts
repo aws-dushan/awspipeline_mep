@@ -6,7 +6,7 @@ import { authConfig } from '@/lib/auth/auth.config'
 const { auth } = NextAuth(authConfig)
 
 /**
- * The deployment prefix, e.g. "/awsmepplms".
+ * The deployment prefix, e.g. "/awsmepplt".
  *
  * Middleware sees the *full* request path, prefix included - unlike route
  * handlers and pages, which Next calls with the prefix already stripped. So

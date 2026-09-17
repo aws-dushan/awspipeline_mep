@@ -143,7 +143,7 @@ Status of the Pipeline / Enquiry Tracking System build.
 
 ## Deployment
 
-- [x] Served at `https://ralsnahashho.dyndns.org:1000/awsmepplms`, behind the
+- [x] Served at `https://ralsnahashho.dyndns.org:1000/awsmepplt`, behind the
       existing nginx edge, alongside the applications already on port 1000
 - [x] Multi-stage Dockerfile on Next's `standalone` output; no source and no
       build toolchain in the shipped layer

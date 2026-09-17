@@ -7,7 +7,10 @@ import { Spinner } from '@/components/ui/primitives'
 import { brand } from '@/lib/branding'
 
 export const metadata: Metadata = {
-  title: 'Sign in',
+  // `absolute` opts out of the root template. Setting the product name through
+  // the template would render it twice, once as the page and once as the
+  // suffix.
+  title: { absolute: brand.productName },
 }
 
 export default function LoginPage() {

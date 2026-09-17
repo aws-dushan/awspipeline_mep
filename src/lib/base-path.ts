@@ -1,7 +1,7 @@
 /**
  * The path prefix the application is served under.
  *
- * The deployment mounts this app at `/awsmepplms` behind a shared nginx, and
+ * The deployment mounts this app at `/awsmepplt` behind a shared nginx, and
  * Next is told about that with `basePath`. Next rewrites its own navigation -
  * `<Link>`, the router, `next/image`, the build assets - but it does **not**
  * touch a hand-written `fetch('/api/...')` or `new EventSource('/api/...')`.

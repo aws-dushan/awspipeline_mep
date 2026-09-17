@@ -15,7 +15,7 @@
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 
-const PUBLIC_URL = 'https://ralsnahashho.dyndns.org:1000/awsmepplms'
+const PUBLIC_URL = 'https://ralsnahashho.dyndns.org:1000/awsmepplt'
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
 
