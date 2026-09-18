@@ -123,6 +123,12 @@ const baseUserSchema = z.object({
     .email('Enter a valid email address')
     .transform((value) => value.toLowerCase()),
   role: z.nativeEnum(Role),
+  /**
+   * The colour this person is drawn in - on their avatar, and so in the
+   * Sales Responsible column of every request they own. Chosen when the
+   * account is made, and changeable afterwards.
+   */
+  avatarColor: hexColor.default('#1E4FD8'),
   isActive: z.coerce.boolean().default(true),
   companyIds: z.array(z.string().min(1)).default([]),
   defaultCompanyId: optionalRef,

@@ -347,6 +347,7 @@ export async function createUserAction(
             email: parsed.email,
             displayCode,
             role: parsed.role,
+            avatarColor: parsed.avatarColor,
             isActive: parsed.isActive,
             passwordHash,
           },
@@ -407,6 +408,7 @@ export async function updateUserAction(input: unknown): Promise<ActionResult<{ i
         email: true,
         displayCode: true,
         role: true,
+        avatarColor: true,
         isActive: true,
         userCompanies: { select: { companyId: true, isDefault: true } },
         supervisorLinks: { select: { supervisorId: true }, take: 1 },
@@ -441,6 +443,7 @@ export async function updateUserAction(input: unknown): Promise<ActionResult<{ i
         email: existing.email,
         displayCode: existing.displayCode,
         role: existing.role,
+        avatarColor: existing.avatarColor,
         isActive: existing.isActive,
       },
       {
@@ -449,6 +452,7 @@ export async function updateUserAction(input: unknown): Promise<ActionResult<{ i
         email: parsed.email,
         displayCode,
         role: parsed.role,
+        avatarColor: parsed.avatarColor,
         isActive: parsed.isActive,
       },
       [
@@ -457,6 +461,7 @@ export async function updateUserAction(input: unknown): Promise<ActionResult<{ i
         { field: 'email', label: 'Email' },
         { field: 'displayCode', label: 'Display code' },
         { field: 'role', label: 'Role' },
+        { field: 'avatarColor', label: 'Colour' },
         { field: 'isActive', label: 'Active' },
       ],
     )
@@ -471,6 +476,7 @@ export async function updateUserAction(input: unknown): Promise<ActionResult<{ i
             email: parsed.email,
             displayCode,
             role: parsed.role,
+            avatarColor: parsed.avatarColor,
             isActive: parsed.isActive,
           },
         })

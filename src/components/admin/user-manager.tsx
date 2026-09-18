@@ -22,6 +22,7 @@ import { Role } from '@prisma/client'
 import type { z } from 'zod'
 
 import { AdminPageHeader, AdminShell } from '@/components/admin/admin-page-header'
+import { ColorPicker } from '@/components/admin/color-picker'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox, MultiSelect } from '@/components/ui/combobox'
@@ -46,6 +47,7 @@ import {
 } from '@/components/ui/select'
 import { Avatar, Switch, Tooltip } from '@/components/ui/primitives'
 import { RelativeTime } from '@/components/ui/relative-time'
+import { accentFor, ACCENT_PALETTE } from '@/lib/branding'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
 import { createUserSchema, updateUserFormSchema } from '@/lib/validation/admin'
@@ -63,6 +65,15 @@ const ROLE_TONE: Record<Role, 'brand' | 'info' | 'neutral'> = {
   ADMIN: 'brand',
   SUPERVISOR: 'info',
   USER: 'neutral',
+}
+
+/** The first palette colour no one holds, or a hashed one once they run out. */
+function suggestColour(users: AdminUserRow[]): string {
+  const taken = new Set(users.map((user) => user.avatarColor))
+  return (
+    ACCENT_PALETTE.find((colour) => !taken.has(colour)) ??
+    accentFor(String(users.length + 1))
+  )
 }
 
 export function UserManager({
@@ -380,6 +391,10 @@ function UserDialog({
       username: user?.username ?? '',
       email: user?.email ?? '',
       role: user?.role ?? Role.USER,
+      // A new account is offered the first colour nobody else is using, so
+      // two people are not drawn the same by default. Hashing the name looked
+      // tidier and collided immediately.
+      avatarColor: user?.avatarColor ?? suggestColour(users),
       isActive: user?.isActive ?? true,
       companyIds: user?.companies.map((company) => company.id) ?? [],
       defaultCompanyId: user?.companies.find((company) => company.isDefault)?.id ?? '',
@@ -419,6 +434,7 @@ function UserDialog({
   }, [open, defaultValues, reset])
 
   const role = watch('role')
+  const watchedName = watch('name')
   const companyIds = watch('companyIds') ?? []
 
   // A user cannot report to themselves, and only supervisors or admins are
@@ -489,19 +505,43 @@ function UserDialog({
               labels={USER_FIELD_LABELS}
             />
 
-            <Field
-              label="Full name"
-              htmlFor="user-name"
-              required
-              error={errors.name?.message}
-            >
-              <Input
-                id="user-name"
-                autoFocus
-                invalid={Boolean(errors.name)}
-                {...register('name')}
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+              <Field
+                label="Full name"
+                htmlFor="user-name"
+                required
+                error={errors.name?.message}
+              >
+                <Input
+                  id="user-name"
+                  autoFocus
+                  invalid={Boolean(errors.name)}
+                  {...register('name')}
+                />
+              </Field>
+
+              {/*
+                Next to the name because it belongs to the person, not to a
+                setting: this is the colour they are drawn in on every request
+                they own, which is what makes the Sales Responsible column
+                readable at a glance.
+              */}
+              <Controller
+                control={control}
+                name="avatarColor"
+                render={({ field }) => (
+                  <Field label="Colour" error={errors.avatarColor?.message}>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={watchedName || 'A'} color={field.value ?? '#1E4FD8'} size="md" />
+                      <ColorPicker
+                        value={field.value ?? '#1E4FD8'}
+                        onChange={(value) => field.onChange(value ?? '#1E4FD8')}
+                      />
+                    </div>
+                  </Field>
+                )}
               />
-            </Field>
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field

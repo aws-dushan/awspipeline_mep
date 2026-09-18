@@ -544,15 +544,16 @@ async function main() {
     await page.goto(`${BASE}/c/${companyId}/admin/dropdowns`, { waitUntil: 'networkidle' })
     await page.click('button:has-text("Mandatory fields")')
     await page.waitForTimeout(700)
-    const rows = await page.$$eval('button', (els) =>
+    const rows = await page.$$eval('button, div[title]', (els) =>
       els
         .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
-        .filter((text) => /(Mandatory|Optional)$/.test(text)),
+        .filter((text) => /(Mandatory|Optional|Always)$/.test(text)),
     )
     if (rows.length === 0) throw new Error('the Mandatory fields tab listed nothing')
     const configured = rows
-      .filter((row) => row.endsWith('Mandatory'))
-      .map((row) => row.replace(/Mandatory$/, '').trim())
+      .filter((row) => row.endsWith('Mandatory') || row.endsWith('Always'))
+      .map((row) => row.replace(/(Mandatory|Always)$/, '').trim())
+    const listed = rows.map((row) => row.replace(/(Mandatory|Optional|Always)$/, '').trim())
 
     await page.goto(`${BASE}/c/${companyId}/pipeline`, { waitUntil: 'networkidle' })
     await page.click('button:has-text("Add Request")')
@@ -562,21 +563,33 @@ async function main() {
     const labels = await page.$$eval('[role="dialog"] label', (els) =>
       els.map((el) => {
         const text = (el.textContent ?? '').trim()
-        return { text: text.replace(/\*$/, '').trim(), required: text.endsWith('*') }
+        return {
+          // "Quote value (AED)" is called "Quote value" in the settings.
+          text: text.replace(/\*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim(),
+          required: text.endsWith('*'),
+        }
       }),
     )
-    // Customer name is always required and is not one of the choices.
+
+    /*
+     * Every field someone can type into has to be on the settings screen. A
+     * field missing from it cannot be made mandatory and cannot be found by
+     * the person looking for it - which is how the customer came to be
+     * invisible there.
+     */
+    const missing = labels.map((l) => l.text).filter((name) => name && !listed.includes(name))
+    if (missing.length > 0) {
+      throw new Error(`not on the Mandatory fields screen: ${missing.join(', ')}`)
+    }
+
     const marked = labels
-      .filter((l) => l.required && l.text !== 'Customer name')
+      .filter((l) => l.required)
       .map((l) => l.text)
       .sort()
 
     const expected = [...configured].sort()
     if (marked.join('|') !== expected.join('|')) {
       throw new Error(`form marks ${marked.join(', ')} but settings say ${expected.join(', ')}`)
-    }
-    if (!labels.some((l) => l.text === 'Customer name' && l.required)) {
-      throw new Error('customer name is not marked required')
     }
     // Set by the system, so they are not fields at all.
     for (const absent of ['Enquiry date', 'Job no']) {

@@ -65,11 +65,29 @@ export function RequiredFields({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <p className="text-[13px] leading-relaxed text-ink-500">
-        Tick the fields a request cannot be saved without. Customer name is always required, and
-        the job number and enquiry date are set by the system, so none of those appear here.
+        Tick the fields a request cannot be saved without. The job number and the enquiry date are
+        set by the system rather than typed, so they are not listed.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-2">
+        {/*
+          Shown rather than hidden, so the list answers "where is the customer?"
+          on the screen instead of leaving it to be guessed. It cannot be
+          turned off: a request that names no customer is not a request, and
+          the column it is stored in does not accept nothing.
+        */}
+        <div
+          className={cn(
+            'flex items-center gap-2.5 rounded-md border border-ink-100 bg-ink-50/60 px-3 py-2.5',
+            'cursor-not-allowed',
+          )}
+          title="A request must name a customer. This one cannot be changed."
+        >
+          <CheckboxVisual checked className="opacity-60" />
+          <span className="flex-1 text-[13.5px] text-ink-500">Customer name</span>
+          <span className="text-[11.5px] text-ink-400">Always</span>
+        </div>
+
         {CONFIGURABLE_ENQUIRY_FIELDS.map((field) => {
           const checked = selected.has(field.field)
           return (
