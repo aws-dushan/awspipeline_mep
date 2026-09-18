@@ -24,11 +24,11 @@ export function initials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-/**
- * Relative luminance based foreground picker, so a badge tinted with an
- * admin-chosen colour always stays readable.
- */
-export function readableForeground(hex: string): string {
+const INK = '#0F172A'
+const PAPER = '#FFFFFF'
+
+/** WCAG relative luminance. */
+function luminance(hex: string): number {
   const normalized = hex.replace('#', '')
   const full =
     normalized.length === 3
@@ -37,12 +37,29 @@ export function readableForeground(hex: string): string {
           .map((c) => c + c)
           .join('')
       : normalized
-  const r = parseInt(full.slice(0, 2), 16) / 255
-  const g = parseInt(full.slice(2, 4), 16) / 255
-  const b = parseInt(full.slice(4, 6), 16) / 255
-  const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
-  const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
-  return luminance > 0.55 ? '#0F172A' : '#FFFFFF'
+  const channel = (start: number) => {
+    const c = parseInt(full.slice(start, start + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
+}
+
+function contrast(a: string, b: string): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (light + 0.05) / (dark + 0.05)
+}
+
+/**
+ * Whichever of ink or paper reads better on this colour.
+ *
+ * Decided by comparing the two contrast ratios rather than by a luminance
+ * cutoff. A cutoff has to guess where the crossover is, and the guess was too
+ * high: amber came out as "dark enough for white text" at a ratio of 2.1:1,
+ * when black on the same amber gives 7.7:1. Comparing the ratios cannot be
+ * wrong about which of two options is more readable.
+ */
+export function readableForeground(hex: string): string {
+  return contrast(hex, INK) >= contrast(hex, PAPER) ? INK : PAPER
 }
 
 /** `#1E4FD8` -> `30 79 216`, for use in `rgb(var(--x) / <alpha>)`. */

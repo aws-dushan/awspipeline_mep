@@ -103,11 +103,3 @@ export function ValueBadge({
   )
 }
 
-/**
- * Probability rendered as a value plus a proportional bar.
- *
- * The bar is what makes a column of percentages scannable at a glance; the
- * width comes from the admin-configured numeric weight, not from parsing the
- * label, so a custom label like "Very likely" still works if it carries a
- * weight.
- */

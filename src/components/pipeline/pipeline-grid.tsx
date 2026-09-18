@@ -666,18 +666,22 @@ function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string):
       )
 
     case 'probability':
-      // The value alone. The bar underneath it said nothing the number did
-      // not, and cost a line of height on every row in the grid.
+      /*
+       * The value on a filled chip. The bar that used to sit under it said
+       * nothing the number did not and cost a line of height on every row;
+       * colouring the text alone left the paler values - grey at 0%, amber at
+       * 25% - barely readable against white. Filling the chip carries the same
+       * scale at a glance and holds its contrast at every step.
+       */
       return row.probability ? (
-        <span
-          className={cn(
-            'tabular text-[12.5px] font-semibold',
-            !row.probability.isActive && 'opacity-60',
-          )}
-          style={{ color: row.probability.color ?? '#64748B' }}
-        >
-          {row.probability.label}
-        </span>
+        <ValueBadge
+          solid
+          size="sm"
+          label={row.probability.label}
+          color={row.probability.color}
+          inactive={!row.probability.isActive}
+          className="tabular font-semibold"
+        />
       ) : (
         <Empty />
       )
