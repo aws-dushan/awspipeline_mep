@@ -24,6 +24,11 @@ import {
 } from '../src/lib/filters/enquiry-filters'
 import { applyAutomationRules, DEFAULT_RULE_PAIRS } from '../src/lib/pipeline/automation'
 import { PIPELINE_COLUMNS } from '../src/lib/pipeline/columns'
+import {
+  createUserSchema,
+  updateUserFormSchema,
+  updateUserSchema,
+} from '../src/lib/validation/admin'
 import { formatJobNo } from '../src/lib/pipeline/job-number'
 
 const prisma = new PrismaClient()
@@ -464,7 +469,54 @@ async function main() {
     check('The same Job No may exist in a different company', sameJobOtherCompany)
 
     // ==========================================================================
-    section('9. Job numbers')
+    section('9. Form schemas match their forms')
+    // ==========================================================================
+    /*
+     * A form must validate the fields it actually holds.
+     *
+     * The edit-user dialog was validating against the server's update schema,
+     * which also requires the user's id - supplied by the screen, bound to no
+     * control. Every save failed on it, and with nothing rendering that field
+     * the error had nowhere to appear, so the dialog sat there doing nothing.
+     * Cheap to check, and invisible from the outside until someone saves.
+     */
+    const userFormValues = {
+      name: 'Check Person',
+      username: 'check.p',
+      email: 'check@example.com',
+      role: 'USER' as const,
+      isActive: true,
+      companyIds: ['c1'],
+      defaultCompanyId: 'c1',
+      supervisorId: '',
+    }
+    check(
+      'The edit-user form validates the fields it holds',
+      updateUserFormSchema.safeParse(userFormValues).success,
+    )
+    check(
+      'The server still demands to be told which user',
+      !updateUserSchema.safeParse(userFormValues).success &&
+        updateUserSchema.safeParse({ ...userFormValues, userId: 'u1' }).success,
+    )
+    check(
+      'The create form is unaffected',
+      createUserSchema.safeParse({ ...userFormValues, password: 'Test123456' }).success,
+    )
+    check(
+      'Cross-field rules survive on the form schema',
+      !updateUserFormSchema.safeParse({ ...userFormValues, companyIds: [], defaultCompanyId: '' })
+        .success &&
+        updateUserFormSchema.safeParse({
+          ...userFormValues,
+          role: 'ADMIN' as const,
+          companyIds: [],
+          defaultCompanyId: '',
+        }).success,
+    )
+
+    // ==========================================================================
+    section('10. Job numbers')
   // ==========================================================================
   check("Prefix and country code compose as J1000_DXB", formatJobNo('J', 1000, 'DXB') === 'J1000_DXB')
   check('A company with neither gets a bare number', formatJobNo('', 1000, '') === '1000')
@@ -473,7 +525,7 @@ async function main() {
   check('Stray whitespace never reaches a job number', formatJobNo(' J ', 1000, ' DXB ') === 'J1000_DXB')
 
   // ==========================================================================
-  section('10. Mandatory fields')
+  section('11. Mandatory fields')
     // ==========================================================================
     /*
      * Ten fields are mandatory - S.No, Job No, Sales Responsible, Customer Name,

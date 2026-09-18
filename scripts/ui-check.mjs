@@ -706,9 +706,19 @@ async function main() {
       throw new Error(`error banner did not explain the problem: ${bannerText.slice(0, 80)}`)
     }
 
-    // Now assign a company and save for real. The option row carries both the
-    // company name and its short code.
-    await page.locator('button').filter({ hasText: /^AWS Distribution$/ }).first().click()
+    // Assign whichever company exists and save for real. Naming one here ties
+    // the check to a particular installation's data.
+    const companyOption = page.locator('[role=dialog] button').filter({ hasText: /^[A-Z]/ })
+    const count = await companyOption.count()
+    let assigned = false
+    for (let i = 0; i < count; i++) {
+      const label = (await companyOption.nth(i).innerText()).trim()
+      if (/^(Create user|Cancel|Show|Hide)/i.test(label) || label.length > 60) continue
+      await companyOption.nth(i).click()
+      assigned = true
+      break
+    }
+    if (!assigned) throw new Error('no company available to assign')
     await page.waitForTimeout(500)
     await page.click('button:has-text("Create user")')
     await page.waitForTimeout(2500)
@@ -720,12 +730,49 @@ async function main() {
   }
 
   /*
-   * The only step that creates a record, so it is the only one that must not
-   * run against the live system. The screen it exercises is still opened by
-   * the read-only pass above.
+   * Editing a user, saved.
+   *
+   * The form used to validate against the server's update schema, which also
+   * requires the user's id - a value the screen supplies and no control is
+   * bound to. Every save failed on it, and because nothing renders that field
+   * the error had nowhere to appear: the dialog simply did nothing. Only a
+   * save catches that, which is why this step exists.
    */
-  if (ALLOW_WRITES) await step('create a user end to end', createUserStep)
-  else skip('create a user end to end', 'read-only: it would add a real user')
+  const editUserStep = async () => {
+    await page.goto(`${BASE}/admin/users`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(600)
+
+    const name = `Zed Tester ${createdUserStamp}`
+    await page.locator(`text=${name}`).first().waitFor({ timeout: 10000 })
+    await page.click(`button[aria-label="Edit ${name}"]`)
+    await page.waitForSelector('text=Edit user', { timeout: 8000 })
+    await page.waitForTimeout(400)
+
+    const renamed = `${name} R`
+    await page.fill('#user-name', renamed)
+    await page.click('[role=dialog] button:has-text("Save")')
+
+    // The dialog must close of its own accord: if validation quietly refused,
+    // it stays open with nothing said, which is exactly the bug.
+    await page.waitForSelector('text=Edit user', { state: 'detached', timeout: 12000 })
+    await page.waitForTimeout(1500)
+
+    await page.goto(`${BASE}/admin/users`, { waitUntil: 'networkidle' })
+    await page.locator(`text=${renamed}`).first().waitFor({ timeout: 10000 })
+  }
+
+  /*
+   * The only steps that create or change a record, so the only ones that must
+   * not run against the live system. The screens themselves are still opened
+   * by the read-only pass above.
+   */
+  if (ALLOW_WRITES) {
+    await step('create a user end to end', createUserStep)
+    await step('edit a user and save', editUserStep)
+  } else {
+    skip('create a user end to end', 'read-only: it would add a real user')
+    skip('edit a user and save', 'read-only: it would change a real user')
+  }
 
   await step('customer edit dialog', async () => {
     await page.goto(`${BASE}/c/${companyId}/customers`, { waitUntil: 'networkidle' })

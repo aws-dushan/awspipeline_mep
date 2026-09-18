@@ -48,7 +48,7 @@ import { Avatar, Switch, Tooltip } from '@/components/ui/primitives'
 import { RelativeTime } from '@/components/ui/relative-time'
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/permissions'
 import { cn, hexWithAlpha, initials } from '@/lib/utils'
-import { createUserSchema, updateUserSchema } from '@/lib/validation/admin'
+import { createUserSchema, updateUserFormSchema } from '@/lib/validation/admin'
 import type { AdminUserRow } from '@/server/actions/admin-actions'
 import {
   createUserAction,
@@ -398,7 +398,15 @@ function UserDialog({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<CreateValues>({
-    resolver: zodResolver(isEdit ? (updateUserSchema as never) : (createUserSchema as never)),
+    /*
+     * The edit form validates the fields it owns, not the server's update
+     * schema - that one also requires the user's id, which the screen supplies
+     * and no control is bound to. Validating against it made every save fail
+     * on a field with nowhere to show an error, so the dialog just sat there.
+     */
+    resolver: zodResolver(
+      isEdit ? (updateUserFormSchema as never) : (createUserSchema as never),
+    ),
     defaultValues,
   })
 

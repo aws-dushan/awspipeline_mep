@@ -129,31 +129,69 @@ const baseUserSchema = z.object({
   supervisorId: optionalRef,
 })
 
-export const createUserSchema = baseUserSchema
-  .extend({
-    password: passwordSchema,
-  })
-  .refine((data) => data.role === 'ADMIN' || data.companyIds.length > 0, {
-    message: 'Assign at least one company',
-    path: ['companyIds'],
-  })
-  .refine(
-    (data) => !data.defaultCompanyId || data.companyIds.includes(data.defaultCompanyId),
-    { message: 'The default company must be one of the assigned companies', path: ['defaultCompanyId'] },
-  )
+/**
+ * The rules that span more than one field, applied to every shape of the user
+ * form so the create form, the edit form and the server cannot drift apart.
+ */
+type UserRuleFields = {
+  role: Role
+  companyIds: string[]
+  defaultCompanyId?: string | null
+}
 
-export const updateUserSchema = baseUserSchema
-  .extend({
+/**
+ * The three fields the cross-field rules read. Every variant of the user form
+ * carries them; the generic above keeps each variant's own full shape, which a
+ * constraint on the whole schema would flatten away.
+ */
+const ruleFields = (data: unknown) => data as UserRuleFields
+
+function withUserRules<Shape extends z.ZodRawShape>(schema: z.ZodObject<Shape>) {
+  return schema
+    .refine(
+      (data) => {
+        const { role, companyIds } = ruleFields(data)
+        return role === 'ADMIN' || companyIds.length > 0
+      },
+      { message: 'Assign at least one company', path: ['companyIds'] },
+    )
+    .refine(
+      (data) => {
+        const { companyIds, defaultCompanyId } = ruleFields(data)
+        return !defaultCompanyId || companyIds.includes(defaultCompanyId)
+      },
+      {
+        message: 'The default company must be one of the assigned companies',
+        path: ['defaultCompanyId'],
+      },
+    )
+}
+
+export const createUserSchema = withUserRules(
+  baseUserSchema.extend({
+    password: passwordSchema,
+  }),
+)
+
+/**
+ * What the *server* validates when updating a user: the account's fields plus
+ * which account it is.
+ */
+export const updateUserSchema = withUserRules(
+  baseUserSchema.extend({
     userId: z.string().min(1),
-  })
-  .refine((data) => data.role === 'ADMIN' || data.companyIds.length > 0, {
-    message: 'Assign at least one company',
-    path: ['companyIds'],
-  })
-  .refine(
-    (data) => !data.defaultCompanyId || data.companyIds.includes(data.defaultCompanyId),
-    { message: 'The default company must be one of the assigned companies', path: ['defaultCompanyId'] },
-  )
+  }),
+)
+
+/**
+ * What the *edit form* validates: the same fields, without the id.
+ *
+ * The id identifies the record and is supplied by the screen, not typed into
+ * it. Validating the form against the server's schema meant every save failed
+ * on a missing `userId` - and since no control is bound to that field, the
+ * error had nowhere to appear, so the dialog simply sat there doing nothing.
+ */
+export const updateUserFormSchema = withUserRules(baseUserSchema)
 
 export const resetPasswordSchema = z.object({
   userId: z.string().min(1),
