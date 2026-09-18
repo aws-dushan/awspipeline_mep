@@ -391,7 +391,17 @@ export function PipelineView({
   const summary = page ?? initialPage
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-5">
+    /*
+     * A definite height, not just a minimum.
+     *
+     * The shell is `min-h-dvh`, so nothing below it has a height to resolve
+     * against and `flex-1` children grow with their content instead of
+     * sharing a fixed space. On this screen that means 168 rows push the page
+     * itself down the window and take the grid's horizontal scrollbar with
+     * them. Pinning the screen to the viewport minus the header gives the grid
+     * something to fit inside, so it scrolls and the page does not.
+     */
+    <div className="flex h-[calc(100dvh-3.5rem)] min-h-0 flex-col gap-3 p-4 sm:p-5">
       <PipelineToolbar
         companyName={company.name}
         currency={company.currency}

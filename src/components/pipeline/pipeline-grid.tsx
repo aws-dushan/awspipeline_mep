@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ProbabilityBadge, ValueBadge } from '@/components/ui/badge'
+import { ValueBadge } from '@/components/ui/badge'
 import { Avatar, Skeleton, Tooltip } from '@/components/ui/primitives'
 import type { BadgeValue, PipelineRow } from '@/lib/database/enquiry-repository'
 import { formatCalendarDate, formatCurrency } from '@/lib/format'
@@ -308,7 +308,12 @@ export function PipelineGrid({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-ink-100 bg-white shadow-sm">
-      <div className="scroll-polished min-h-0 flex-1 overflow-auto overscroll-x-contain">
+      {/*
+        Hugs its rows, capped by the card. Stretching it put the horizontal
+        scrollbar at the bottom of the card with empty white between it and
+        the last row, so reaching it meant travelling past nothing.
+      */}
+      <div className="scroll-polished min-h-0 max-h-full overflow-auto overscroll-x-contain">
         <table
           style={{ width: TOTAL_WIDTH, tableLayout: 'fixed' }}
           className="border-separate border-spacing-0 text-left"
@@ -319,7 +324,7 @@ export function PipelineGrid({
                 <th
                   scope="col"
                   style={lockedWidth(ACTIONS_WIDTH, 0)}
-                  className="sticky left-0 z-10 h-10 border-b border-ink-100 bg-ink-50/80 px-2 backdrop-blur"
+                  className="sticky left-0 z-10 h-9 border-b border-ink-100 bg-ink-50/80 px-1.5 backdrop-blur"
                 >
                   <span className="sr-only">Actions</span>
                 </th>
@@ -341,8 +346,8 @@ export function PipelineGrid({
                         ...(pinnedLeft !== undefined ? { left: pinnedLeft } : {}),
                       }}
                       className={cn(
-                        'group/header h-10 border-b border-ink-100 bg-ink-50/80 px-3 backdrop-blur',
-                        'text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-500',
+                        'group/header h-9 border-b border-ink-100 bg-ink-50/80 px-2 backdrop-blur',
+                        'text-[11px] font-semibold uppercase tracking-[0.05em] text-ink-500',
                         'select-none',
                         pinnedLeft !== undefined &&
                           'sticky z-10 shadow-[1px_0_0_0_var(--color-ink-100)]',
@@ -438,7 +443,7 @@ export function PipelineGrid({
                   <td
                     style={lockedWidth(ACTIONS_WIDTH, 0)}
                     className={cn(
-                      'sticky left-0 z-[5] h-[46px] border-b border-ink-100/70 px-1 text-center',
+                      'sticky left-0 z-[5] h-[34px] border-b border-ink-100/70 px-1 text-center',
                       selected
                         ? 'bg-[#eef3fb]'
                         : index % 2 === 1
@@ -504,8 +509,8 @@ export function PipelineGrid({
                           ...(pinnedLeft !== undefined ? { left: pinnedLeft } : {}),
                         }}
                         className={cn(
-                          'h-[46px] border-b border-ink-100/70 text-[13px] text-ink-700',
-                          rowEdit && FIELD_BY_COLUMN[column.key] ? 'px-1' : 'px-3',
+                          'h-[34px] border-b border-ink-100/70 text-[12.5px] text-ink-700',
+                          rowEdit && FIELD_BY_COLUMN[column.key] ? 'px-1' : 'px-2',
                           pinnedLeft !== undefined && [
                             'sticky z-[5] shadow-[1px_0_0_0_var(--color-ink-100)]',
                             // The pinned cells need their own opaque background
@@ -661,13 +666,18 @@ function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string):
       )
 
     case 'probability':
+      // The value alone. The bar underneath it said nothing the number did
+      // not, and cost a line of height on every row in the grid.
       return row.probability ? (
-        <ProbabilityBadge
-          label={row.probability.label}
-          color={row.probability.color}
-          numericValue={row.probability.numericValue}
-          inactive={!row.probability.isActive}
-        />
+        <span
+          className={cn(
+            'tabular text-[12.5px] font-semibold',
+            !row.probability.isActive && 'opacity-60',
+          )}
+          style={{ color: row.probability.color ?? '#64748B' }}
+        >
+          {row.probability.label}
+        </span>
       ) : (
         <Empty />
       )
@@ -850,7 +860,7 @@ function SkeletonRows({ pinnedOffsets }: { pinnedOffsets: Map<PipelineColumnKey,
                   ...(pinnedLeft !== undefined ? { left: pinnedLeft } : {}),
                 }}
                 className={cn(
-                  'h-[46px] border-b border-ink-100/70 px-3',
+                  'h-[34px] border-b border-ink-100/70 px-2',
                   pinnedLeft !== undefined &&
                     'sticky z-[5] bg-white shadow-[1px_0_0_0_var(--color-ink-100)]',
                 )}
