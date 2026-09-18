@@ -161,21 +161,6 @@ async function main() {
     companyId = /\/c\/([^/]+)/.exec(page.url())?.[1]
     if (!companyId) throw new Error(`no company reached — landed on ${page.url()}`)
 
-    /*
-     * Discovered, not hardcoded: later steps pick this company out of a list,
-     * and naming one here would tie the check to one installation. The first
-     * header button is the logo and has no text, so this takes the first one
-     * that does - the company switcher, which reads "AD
-AWS Distribution".
-     */
-    const headerLabels = await page.locator('header button').allInnerTexts()
-    const switcher = headerLabels.map((text) => text.trim()).find(Boolean) ?? ''
-    // Dropping the blank segments: the label ends with a newline, so taking
-    // the last one straight off gives an empty string - which then matches
-    // every button on the page.
-    const parts = switcher.split('\n').map((part) => part.trim()).filter(Boolean)
-    companyName = parts[parts.length - 1] ?? ''
-    if (!companyName) throw new Error('could not read the company name from the header')
   })
 
   if (!companyId) {
@@ -705,6 +690,22 @@ AWS Distribution".
   })
 
   const createUserStep = async () => {
+    /*
+     * The company's name, read from the screen that lists companies rather
+     * than guessed from the header - the first header button with text is the
+     * Admin menu, not the company switcher, and clicking "Admin" in the
+     * company list assigns nothing. The edit button's label is exactly
+     * "Edit <name>", which is the one place the name appears on its own.
+     */
+    await page.goto(`${BASE}/admin/companies`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(500)
+    const editLabel = await page
+      .locator('button[aria-label^="Edit "]')
+      .first()
+      .getAttribute('aria-label')
+    companyName = (editLabel ?? '').replace(/^Edit /, '').trim()
+    if (!companyName) throw new Error('no company on the companies screen to assign')
+
     await page.goto(`${BASE}/admin/users`, { waitUntil: 'networkidle' })
     await page.click('button:has-text("New user")')
     await page.waitForSelector('text=Create user', { timeout: 8000 })
@@ -739,15 +740,30 @@ AWS Distribution".
      * installation's data; hunting for "a button with a capital letter" picks
      * up the Role selector instead, which is what it did.
      */
-    // Substring, not an anchored pattern: the button wraps the name in a
-    // colour dot and a checkbox, so its text carries surrounding whitespace.
+    /*
+     * Substring, not an anchored pattern: the button wraps the name in a
+     * colour dot and a checkbox, so its text carries surrounding whitespace.
+     *
+     * The selection is then proved before submitting. A mis-aimed click here
+     * leaves the form invalid, the save refused and the user never created -
+     * and the only symptom is a later step failing to find them, which says
+     * nothing about why.
+     */
     const companyOption = page
       .locator('[role=dialog] button')
       .filter({ hasText: companyName })
       .first()
     await companyOption.waitFor({ timeout: 8000 })
     await companyOption.click()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(600)
+
+    const stillComplaining = await page
+      .locator('[role=dialog]')
+      .getByText(/assign at least one company/i)
+      .count()
+    if (stillComplaining > 0) {
+      throw new Error(`clicking "${companyName}" did not assign the company`)
+    }
     await page.click('button:has-text("Create user")')
     await page.waitForTimeout(2500)
 
@@ -833,8 +849,19 @@ AWS Distribution".
    */
   await step('sign out returns to this site', async () => {
     await page.goto(`${BASE}/select-company`, { waitUntil: 'networkidle' })
-    // The company chooser signs out directly; no account menu to open first.
-    await page.getByRole('button', { name: /sign out/i }).first().click()
+    /*
+     * Two places offer it, and which one you get depends on the data: with
+     * several companies the chooser appears and signs out directly, with one
+     * it redirects past the chooser to the pipeline, where sign-out lives in
+     * the account menu. The check has to work on both.
+     */
+    let signOut = page.getByRole('button', { name: /sign out/i })
+    if ((await signOut.count()) === 0) {
+      await page.locator('header button').last().click()
+      await page.waitForTimeout(400)
+      signOut = page.getByRole('menuitem', { name: /sign out/i })
+    }
+    await signOut.first().click()
     await page.waitForURL(/\/login/, { timeout: 20000 })
     const landed = new URL(page.url())
     const expected = new URL(BASE)
