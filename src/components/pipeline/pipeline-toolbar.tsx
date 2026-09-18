@@ -136,7 +136,12 @@ export function PipelineToolbar({
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-ink-100 bg-white px-4 py-2.5 shadow-xs">
         <SummaryStat
           label="Pipeline value"
-          value={formatCurrency(summary.totalQuoteValue, currency, { compact: summary.totalQuoteValue >= 1_000_000 })}
+          /*
+           * Written out in full, never shortened to "1.2M". This is a figure
+           * people read off the screen and put in a message or a report, and
+           * a rounded one is wrong by up to fifty thousand.
+           */
+          value={formatCurrency(summary.totalQuoteValue, currency)}
           loading={loading && summary.total === 0}
         />
         <span className="h-6 w-px bg-ink-100" aria-hidden />
