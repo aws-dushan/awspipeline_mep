@@ -12,7 +12,7 @@ import {
   type CustomerDraft,
 } from '@/components/customers/customer-form-dialog'
 import { Button } from '@/components/ui/button'
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
+import { Combobox, MultiSelectField, type ComboboxOption } from '@/components/ui/combobox'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { DatePicker } from '@/components/ui/date-picker'
 import {
@@ -121,13 +121,14 @@ export function EnquiryDrawer({
    * that were saved with it count as "not typed in this session" and do follow
    * a change of customer.
    */
-  const prefilledContact = React.useRef({ email: '', phoneNumber: '' })
+  const prefilledContact = React.useRef({ email: '', contactPerson: '', phoneNumber: '' })
 
   React.useEffect(() => {
     if (open) {
       reset(defaultValues)
       prefilledContact.current = {
         email: String(defaultValues.email ?? ''),
+        contactPerson: String(defaultValues.contactPerson ?? ''),
         phoneNumber: String(defaultValues.phoneNumber ?? ''),
       }
       setAutomationNote(null)
@@ -135,7 +136,7 @@ export function EnquiryDrawer({
   }, [open, defaultValues, reset])
 
   const applyCustomerContact = React.useCallback(
-    (field: 'email' | 'phoneNumber', value: string | null) => {
+    (field: 'email' | 'contactPerson' | 'phoneNumber', value: string | null) => {
       const current = String(getValues(field) ?? '')
       if (current !== '' && current !== prefilledContact.current[field]) return
       const next = value ?? ''
@@ -154,11 +155,18 @@ export function EnquiryDrawer({
     (changedType: DropdownTypeKey) => {
       if (automationRules.length === 0) return
 
+      /*
+       * Only the single-valued fields take part.
+       *
+       * Location and Material hold a set now, and a rule like "when Material
+       * is X then Status is Y" has no single answer once a request carries
+       * three materials - nor does "then Material is X" say whether to add or
+       * replace. Rather than invent one, the rule builder offers Status and
+       * Probability, which is what the linkage was for.
+       */
       const current = getValues()
       const selection = {
         STATUS: current.statusValueId || null,
-        LOCATION: current.locationValueId || null,
-        MATERIAL: current.materialValueId || null,
         PROBABILITY: current.probabilityValueId || null,
       }
 
@@ -167,6 +175,7 @@ export function EnquiryDrawer({
 
       for (const change of outcome.applied) {
         const fieldName = FIELD_BY_TYPE[change.thenType]
+        if (!fieldName) continue
         setValue(fieldName, change.toValueId, { shouldDirty: true })
       }
 
@@ -258,6 +267,7 @@ export function EnquiryDrawer({
                           field.onChange(customer.name)
                           setValue('customerId', customer.id, { shouldDirty: true })
                           applyCustomerContact('email', customer.email)
+                          applyCustomerContact('contactPerson', customer.contactPerson)
                           applyCustomerContact('phoneNumber', customer.phone)
                         }}
                         onCreated={onCustomerCreated}
@@ -359,18 +369,17 @@ export function EnquiryDrawer({
 
                 <Controller
                   control={control}
-                  name="locationValueId"
+                  name="locationValueIds"
                   render={({ field }) => (
-                    <Field label="Location" required error={errors.locationValueId?.message}>
-                      <Combobox
+                    <Field label="Locations" required error={errors.locationValueIds?.message}>
+                      <MultiSelectField
                         options={options.location}
-                        value={field.value || null}
-                        onChange={(value) => {
-                          field.onChange(value ?? '')
-                          runAutomation('LOCATION')
-                        }}
-                        placeholder="Select location"
+                        values={field.value ?? []}
+                        onChange={field.onChange}
+                        placeholder="Select locations"
+                        searchPlaceholder="Search locations..."
                         emptyText="No locations configured"
+                        invalid={Boolean(errors.locationValueIds)}
                       />
                     </Field>
                   )}
@@ -378,18 +387,17 @@ export function EnquiryDrawer({
 
                 <Controller
                   control={control}
-                  name="materialValueId"
+                  name="materialValueIds"
                   render={({ field }) => (
-                    <Field label="Material" required error={errors.materialValueId?.message}>
-                      <Combobox
+                    <Field label="Materials" required error={errors.materialValueIds?.message}>
+                      <MultiSelectField
                         options={options.material}
-                        value={field.value || null}
-                        onChange={(value) => {
-                          field.onChange(value ?? '')
-                          runAutomation('MATERIAL')
-                        }}
-                        placeholder="Select material"
+                        values={field.value ?? []}
+                        onChange={field.onChange}
+                        placeholder="Select materials"
+                        searchPlaceholder="Search materials..."
                         emptyText="No materials configured"
+                        invalid={Boolean(errors.materialValueIds)}
                       />
                     </Field>
                   )}
@@ -455,6 +463,10 @@ export function EnquiryDrawer({
                   />
                 </Field>
 
+                <Field label="Contact person" error={errors.contactPerson?.message}>
+                  <Input {...register('contactPerson')} />
+                </Field>
+
                 <Field label="Phone number" error={errors.phoneNumber?.message}>
                   <Input {...register('phoneNumber')} />
                 </Field>
@@ -509,22 +521,27 @@ const ENQUIRY_FIELD_LABELS: Record<string, string> = {
   customerName: 'Customer',
   projectName: 'Project name',
   statusValueId: 'Status',
-  locationValueId: 'Location',
-  materialValueId: 'Material',
+  locationValueIds: 'Locations',
+  materialValueIds: 'Materials',
   enquiryDetails: 'Enquiry details',
   quoteValue: 'Quote value',
   probabilityValueId: 'Probability',
   expectedOrderDate: 'Expected order date',
   expectedBillingDate: 'Expected billing date',
   email: 'Email',
+  contactPerson: 'Contact person',
   phoneNumber: 'Phone number',
   remarks: 'Remarks',
 }
 
-const FIELD_BY_TYPE: Record<DropdownTypeKey, keyof EnquiryFormInput> = {
+/**
+ * Which form field a rule writes to.
+ *
+ * Only the single-valued ones: a rule that writes a set would have to say
+ * whether it adds or replaces, and no such rule can be built.
+ */
+const FIELD_BY_TYPE: Partial<Record<DropdownTypeKey, keyof EnquiryFormInput>> = {
   STATUS: 'statusValueId',
-  LOCATION: 'locationValueId',
-  MATERIAL: 'materialValueId',
   PROBABILITY: 'probabilityValueId',
 }
 
@@ -577,7 +594,13 @@ function CustomerPicker({
   customers: DrawerOption[]
   value: string
   invalid?: boolean
-  onSelect: (customer: { id: string; name: string; email: string | null; phone: string | null }) => void
+  onSelect: (customer: {
+    id: string
+    name: string
+    email: string | null
+    contactPerson: string | null
+    phone: string | null
+  }) => void
   onCreated: () => void
 }) {
   const [draft, setDraft] = React.useState<CustomerDraft | null>(null)
@@ -600,18 +623,19 @@ function CustomerPicker({
         onChange={(id) => {
           const option = customers.find((customer) => customer.value === id)
           if (!option) return
-          const [email, phone] = (option.keywords ?? '|').split('|')
+          const [email, contactPerson, phone] = (option.keywords ?? '||').split('|')
           onSelect({
             id: option.value,
             name: option.label,
             email: email || null,
+            contactPerson: contactPerson || null,
             phone: phone || null,
           })
         }}
         // Returning null hands off to the dialog below, so a customer entered
-        // here can carry an email and phone rather than just a name.
+        // here can carry contact details rather than just a name.
         onCreate={(name) => {
-          setDraft({ name, email: null, phone: null })
+          setDraft({ name, email: null, contactPerson: null, phone: null })
           return null
         }}
       />
@@ -632,14 +656,21 @@ function CustomerPicker({
 
 /** Option list builder shared by the drawer and the filter menus. */
 export function customerOptions(
-  customers: { id: string; name: string; email: string | null; phone: string | null; enquiryCount: number }[],
+  customers: {
+    id: string
+    name: string
+    email: string | null
+    contactPerson: string | null
+    phone: string | null
+    enquiryCount: number
+  }[],
 ): DrawerOption[] {
   return customers.map((customer) => ({
     value: customer.id,
     label: customer.name,
     description: customer.email ?? customer.phone ?? undefined,
     // Packed so the picker can prefill contact fields without another lookup.
-    keywords: `${customer.email ?? ''}|${customer.phone ?? ''}`,
+    keywords: `${customer.email ?? ''}|${customer.contactPerson ?? ''}|${customer.phone ?? ''}`,
     leading: (
       <span className="grid size-5 shrink-0 place-items-center rounded bg-ink-100 text-ink-400">
         <Building2 className="size-3" />

@@ -44,7 +44,15 @@ const TYPE_LABELS: Record<DropdownTypeKey, string> = {
   PROBABILITY: 'Probability',
 }
 
-const TYPE_OPTIONS: DropdownTypeKey[] = ['STATUS', 'PROBABILITY', 'LOCATION', 'MATERIAL']
+/**
+ * The fields a rule can read or write.
+ *
+ * Only the single-valued ones. A request carries a set of locations and a set
+ * of materials, so "when Material is X" has no single answer and "then
+ * Material is X" does not say whether to add or replace. Offering them would
+ * be offering a rule that cannot be defined.
+ */
+const TYPE_OPTIONS: DropdownTypeKey[] = ['STATUS', 'PROBABILITY']
 
 /**
  * Field linkage rules.

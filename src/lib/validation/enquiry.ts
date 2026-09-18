@@ -36,6 +36,13 @@ const optionalCalendarDate = optionalId.refine(
  * Same normalisation as `optionalId` - a cleared picker can send "", null or
  * undefined - but all three are rejected rather than stored as null.
  */
+/** A set of references where at least one must be chosen. */
+const requiredIdList = (message: string) =>
+  z
+    .array(z.string().trim().min(1))
+    .default([])
+    .refine((values) => values.length > 0, { message })
+
 const requiredId = (message: string) =>
   z
     .union([z.string(), z.null(), z.undefined()])
@@ -86,8 +93,9 @@ export const enquiryFormSchema = z
       .min(1, 'Project name is required')
       .max(200, 'Project name must be 200 characters or fewer'),
     statusValueId: requiredId('Select a status'),
-    locationValueId: requiredId('Select a location'),
-    materialValueId: requiredId('Select a material'),
+    // A request can span several of each; at least one is still required.
+    locationValueIds: requiredIdList('Select at least one location'),
+    materialValueIds: requiredIdList('Select at least one material'),
     enquiryDetails: z
       .string()
       .trim()
@@ -101,6 +109,7 @@ export const enquiryFormSchema = z
       (value) => value === null || z.string().email().safeParse(value).success,
       { message: 'Enter a valid email address' },
     ),
+    contactPerson: optionalText(120, 'Contact person'),
     phoneNumber: optionalText(60, 'Phone number'),
     remarks: optionalText(2000, 'Remarks'),
   })
@@ -162,6 +171,7 @@ export const createCustomerSchema = z.object({
     (value) => value === null || z.string().email().safeParse(value).success,
     { message: 'Enter a valid email address' },
   ),
+  contactPerson: optionalText(120, 'Contact person'),
   phone: optionalText(60, 'Phone number'),
 })
 
@@ -178,14 +188,15 @@ export const EMPTY_ENQUIRY_FORM: EnquiryFormInput = {
   customerName: '',
   projectName: '',
   statusValueId: '',
-  locationValueId: '',
-  materialValueId: '',
+  locationValueIds: [],
+  materialValueIds: [],
   enquiryDetails: '',
   quoteValue: '',
   probabilityValueId: '',
   expectedOrderDate: '',
   expectedBillingDate: '',
   email: '',
+  contactPerson: '',
   phoneNumber: '',
   remarks: '',
 }

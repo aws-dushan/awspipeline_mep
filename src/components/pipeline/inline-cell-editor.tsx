@@ -3,7 +3,7 @@
 import * as React from 'react'
 
 import type { FilterOptions } from '@/components/pipeline/filters/column-filter'
-import { Combobox } from '@/components/ui/combobox'
+import { Combobox, MultiSelectField } from '@/components/ui/combobox'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Input, Textarea } from '@/components/ui/input'
 import type { PipelineColumn } from '@/lib/pipeline/columns'
@@ -93,6 +93,22 @@ export function InlineCellEditor({
     />
   )
 
+  /** A set of references, edited in a cell one line tall. */
+  const multi = (
+    key: keyof EnquiryFormInput,
+    list: FilterOptions[keyof FilterOptions],
+    placeholder: string,
+  ) => (
+    <MultiSelectField
+      compact
+      invalid={invalid}
+      options={list}
+      values={(draft[key] as string[] | undefined) ?? []}
+      placeholder={placeholder}
+      onChange={(values) => onPatch({ [key]: values } as DraftPatch)}
+    />
+  )
+
   const date = (key: keyof EnquiryFormInput) => (
     <DatePicker
       compact
@@ -134,9 +150,9 @@ export function InlineCellEditor({
     case 'status':
       return picker('statusValueId', options.status, 'Select status')
     case 'location':
-      return picker('locationValueId', options.location, 'Select location')
+      return multi('locationValueIds', options.location, 'Select locations')
     case 'material':
-      return picker('materialValueId', options.material, 'Select material')
+      return multi('materialValueIds', options.material, 'Select materials')
     case 'probability':
       return picker('probabilityValueId', options.probability, 'Select probability')
 
@@ -173,6 +189,8 @@ export function InlineCellEditor({
 
     case 'email':
       return text('email', { type: 'email', autoComplete: 'off' })
+    case 'contactPerson':
+      return text('contactPerson')
 
     case 'projectName':
       return text('projectName')
@@ -195,14 +213,15 @@ export const FIELD_BY_COLUMN: Partial<Record<PipelineColumn['key'], keyof Enquir
   customerName: 'customerName',
   projectName: 'projectName',
   status: 'statusValueId',
-  location: 'locationValueId',
-  material: 'materialValueId',
+  location: 'locationValueIds',
+  material: 'materialValueIds',
   enquiryDetails: 'enquiryDetails',
   quoteValue: 'quoteValue',
   probability: 'probabilityValueId',
   expectedOrderDate: 'expectedOrderDate',
   expectedBillingDate: 'expectedBillingDate',
   email: 'email',
+  contactPerson: 'contactPerson',
   phoneNumber: 'phoneNumber',
   remarks: 'remarks',
 }

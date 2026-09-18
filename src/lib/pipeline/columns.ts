@@ -30,6 +30,7 @@ export type PipelineColumnKey =
   | 'expectedOrderDate'
   | 'expectedBillingDate'
   | 'email'
+  | 'contactPerson'
   | 'phoneNumber'
   | 'remarks'
 
@@ -191,6 +192,15 @@ export const PIPELINE_COLUMNS: readonly PipelineColumn[] = [
     minWidth: 160,
     excelWidth: 30,
     truncate: true,
+  },
+  {
+    key: 'contactPerson',
+    label: 'Contact Person',
+    exportLabel: 'Contact Person',
+    filter: 'text',
+    width: 180,
+    minWidth: 140,
+    excelWidth: 20,
   },
   {
     key: 'phoneNumber',

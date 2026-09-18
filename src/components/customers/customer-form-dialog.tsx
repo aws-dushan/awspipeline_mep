@@ -22,6 +22,7 @@ export type CustomerDraft = {
   id?: string
   name: string
   email: string | null
+  contactPerson: string | null
   phone: string | null
   isActive?: boolean
 }
@@ -45,12 +46,19 @@ export function CustomerFormDialog({
   onOpenChange: (open: boolean) => void
   /** Pass `{ name }` alone to prefill a new customer from a typed search. */
   customer: CustomerDraft | null
-  onSaved: (customer: { id: string; name: string; email: string | null; phone: string | null }) => void
+  onSaved: (customer: {
+    id: string
+    name: string
+    email: string | null
+    contactPerson: string | null
+    phone: string | null
+  }) => void
 }) {
   const isEdit = Boolean(customer?.id)
 
   const [name, setName] = React.useState('')
   const [email, setEmail] = React.useState('')
+  const [contactPerson, setContactPerson] = React.useState('')
   const [phone, setPhone] = React.useState('')
   const [isActive, setIsActive] = React.useState(true)
   const [submitting, setSubmitting] = React.useState(false)
@@ -60,6 +68,7 @@ export function CustomerFormDialog({
     if (!open) return
     setName(customer?.name ?? '')
     setEmail(customer?.email ?? '')
+    setContactPerson(customer?.contactPerson ?? '')
     setPhone(customer?.phone ?? '')
     setIsActive(customer?.isActive ?? true)
     setErrors({})
@@ -77,10 +86,11 @@ export function CustomerFormDialog({
             customerId: customer.id,
             name,
             email,
+            contactPerson,
             phone,
             isActive,
           })
-        : await createCustomerAction({ companyId, name, email, phone })
+        : await createCustomerAction({ companyId, name, email, contactPerson, phone })
 
     setSubmitting(false)
 
@@ -116,6 +126,7 @@ export function CustomerFormDialog({
       id: saved.id,
       name: saved.name,
       email: email.trim() || null,
+      contactPerson: contactPerson.trim() || null,
       phone: phone.trim() || null,
     })
   }
@@ -155,6 +166,19 @@ export function CustomerFormDialog({
                 onChange={(event) => setEmail(event.target.value)}
                 autoComplete="off"
                 invalid={Boolean(errors.email)}
+              />
+            </Field>
+
+            <Field
+              label="Contact person"
+              error={errors.contactPerson}
+              hint="Who to ask for. Prefilled onto new requests, and editable there."
+            >
+              <Input
+                value={contactPerson}
+                onChange={(event) => setContactPerson(event.target.value)}
+                invalid={Boolean(errors.contactPerson)}
+                maxLength={120}
               />
             </Field>
 

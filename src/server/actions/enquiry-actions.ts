@@ -11,7 +11,10 @@ import {
 } from '@/lib/auth/session'
 import { enforceAutomationRules } from '@/lib/database/automation-repository'
 import { resolveCustomer } from '@/lib/database/customer-repository'
-import { assertDropdownSelections } from '@/lib/database/dropdown-repository'
+import {
+  assertDropdownSelectionList,
+  assertDropdownSelections,
+} from '@/lib/database/dropdown-repository'
 import { getEnquiryById } from '@/lib/database/enquiry-repository'
 import { prisma } from '@/lib/database/prisma'
 import { formatCurrency, parseCalendarDate } from '@/lib/format'
@@ -68,16 +71,60 @@ function toPersistable(data: EnquiryFormValues, customer: { id: string; name: st
     customerName: customer.name,
     projectName: data.projectName,
     statusValueId: data.statusValueId,
-    locationValueId: data.locationValueId,
-    materialValueId: data.materialValueId,
     enquiryDetails: data.enquiryDetails,
     quoteValue: data.quoteValue,
     probabilityValueId: data.probabilityValueId,
     expectedOrderDate: parseCalendarDate(data.expectedOrderDate),
     expectedBillingDate: parseCalendarDate(data.expectedBillingDate),
     email: data.email,
+    contactPerson: data.contactPerson,
     phoneNumber: data.phoneNumber,
     remarks: data.remarks,
+  }
+}
+
+/**
+ * Rewrite a request's locations or materials to exactly the given set.
+ *
+ * Deleting what is no longer selected and creating what is new, rather than
+ * clearing and re-inserting: the rows that stay put keep their identity, so a
+ * save that changes nothing writes nothing.
+ */
+/**
+ * The slice of a join-table delegate this needs.
+ *
+ * The two tables have identical shapes but distinct Prisma types, and a
+ * ternary between them produces a union whose methods cannot be called. Naming
+ * what is actually used keeps one implementation for both.
+ */
+type SelectionSetDelegate = {
+  findMany(args: {
+    where: { enquiryId: string }
+    select: { valueId: true }
+  }): Promise<{ valueId: string }[]>
+  deleteMany(args: { where: { enquiryId: string; valueId: { in: string[] } } }): Promise<unknown>
+  createMany(args: { data: { enquiryId: string; valueId: string }[] }): Promise<unknown>
+}
+
+async function syncSelectionSet(
+  tx: Prisma.TransactionClient,
+  kind: 'location' | 'material',
+  enquiryId: string,
+  valueIds: string[],
+) {
+  const table: SelectionSetDelegate = kind === 'location' ? tx.enquiryLocation : tx.enquiryMaterial
+  const wanted = new Set(valueIds)
+  const existing = await table.findMany({ where: { enquiryId }, select: { valueId: true } })
+  const have = new Set(existing.map((row) => row.valueId))
+
+  const remove = [...have].filter((id) => !wanted.has(id))
+  const add = [...wanted].filter((id) => !have.has(id))
+
+  if (remove.length > 0) {
+    await table.deleteMany({ where: { enquiryId, valueId: { in: remove } } })
+  }
+  if (add.length > 0) {
+    await table.createMany({ data: add.map((valueId) => ({ enquiryId, valueId })) })
   }
 }
 
@@ -104,10 +151,10 @@ export async function createEnquiryAction(
     await Promise.all([
       assertDropdownSelections(company.id, {
         STATUS: raw.statusValueId,
-        LOCATION: raw.locationValueId,
-        MATERIAL: raw.materialValueId,
         PROBABILITY: raw.probabilityValueId,
       }),
+      assertDropdownSelectionList(company.id, 'LOCATION', raw.locationValueIds),
+      assertDropdownSelectionList(company.id, 'MATERIAL', raw.materialValueIds),
       assertCompanyMember(company.id, raw.salesResponsibleId),
     ])
 
@@ -115,22 +162,25 @@ export async function createEnquiryAction(
     // record every selection counts as changed.
     const enforced = await enforceAutomationRules({
       companyId: company.id,
+      /*
+       * Only the single-valued fields take part. A rule like "when Material is
+       * X" has no single answer once a request carries three materials, and
+       * "then Material is X" does not say whether to add or replace - so the
+       * rule builder offers Status and Probability, which is what the linkage
+       * was for.
+       */
       selection: {
         STATUS: raw.statusValueId,
-        LOCATION: raw.locationValueId,
-        MATERIAL: raw.materialValueId,
         PROBABILITY: raw.probabilityValueId,
       },
     })
 
-    // Automation replaces a selection; it never clears one. These four are
-    // required by the form, so falling back to what was submitted keeps that
-    // guarantee rather than quietly writing a null.
+    // Automation replaces a selection; it never clears one. Both are required
+    // by the form, so falling back to what was submitted keeps that guarantee
+    // rather than quietly writing a null.
     const data: EnquiryFormValues = {
       ...raw,
       statusValueId: enforced.STATUS ?? raw.statusValueId,
-      locationValueId: enforced.LOCATION ?? raw.locationValueId,
-      materialValueId: enforced.MATERIAL ?? raw.materialValueId,
       probabilityValueId: enforced.PROBABILITY ?? raw.probabilityValueId,
     }
 
@@ -155,6 +205,11 @@ export async function createEnquiryAction(
           // the form. It is a record of an event, not a field to choose.
           enquiryDate: new Date(),
           ...toPersistable(data, customer),
+          // Written with the request rather than after it, so a request never
+          // exists for even an instant without the locations and materials the
+          // form required.
+          locations: { create: data.locationValueIds.map((valueId) => ({ valueId })) },
+          materials: { create: data.materialValueIds.map((valueId) => ({ valueId })) },
           createdById: user.id,
           updatedById: user.id,
         },
@@ -227,6 +282,7 @@ export async function createCustomerAction(
         customerName: parsed.name,
         actorId: user.id,
         email: parsed.email,
+        contactPerson: parsed.contactPerson,
         phone: parsed.phone,
       })
 
@@ -242,7 +298,11 @@ export async function createCustomerAction(
           entity: 'CUSTOMER',
           entityId: customer.id,
           summary: `${user.name} added customer ${customer.name}`,
-          metadata: { email: parsed.email, phone: parsed.phone },
+          metadata: {
+            email: parsed.email,
+            contactPerson: parsed.contactPerson,
+            phone: parsed.phone,
+          },
         },
         tx,
       )
@@ -277,7 +337,14 @@ export async function updateCustomerAction(
 
     const existing = await prisma.customer.findFirst({
       where: { id: parsed.customerId, companyId: company.id },
-      select: { id: true, name: true, email: true, phone: true, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        contactPerson: true,
+        phone: true,
+        isActive: true,
+      },
     })
     if (!existing) throw new NotFoundError('That customer no longer exists.')
 
@@ -301,18 +368,21 @@ export async function updateCustomerAction(
       {
         name: existing.name,
         email: existing.email,
+        contactPerson: existing.contactPerson,
         phone: existing.phone,
         isActive: existing.isActive,
       },
       {
         name: parsed.name,
         email: parsed.email,
+        contactPerson: parsed.contactPerson,
         phone: parsed.phone,
         isActive: parsed.isActive,
       },
       [
         { field: 'name', label: 'Name' },
         { field: 'email', label: 'Email' },
+        { field: 'contactPerson', label: 'Contact person' },
         { field: 'phone', label: 'Phone' },
         { field: 'isActive', label: 'Active' },
       ],
@@ -324,6 +394,7 @@ export async function updateCustomerAction(
         data: {
           name: parsed.name,
           email: parsed.email,
+          contactPerson: parsed.contactPerson,
           phone: parsed.phone,
           isActive: parsed.isActive,
         },
@@ -396,14 +467,15 @@ const AUDITED_FIELDS = [
   { field: 'customerName', label: 'Customer Name' },
   { field: 'projectName', label: 'Project Name' },
   { field: 'status', label: 'Status' },
-  { field: 'location', label: 'Location' },
-  { field: 'material', label: 'Material' },
+  { field: 'location', label: 'Locations' },
+  { field: 'material', label: 'Materials' },
   { field: 'enquiryDetails', label: 'Enquiry Details' },
   { field: 'quoteValue', label: 'Quote Value' },
   { field: 'probability', label: 'Probability' },
   { field: 'expectedOrderDate', label: 'Exp Order Date' },
   { field: 'expectedBillingDate', label: 'Exp Billing Date' },
   { field: 'email', label: 'Email' },
+  { field: 'contactPerson', label: 'Contact Person' },
   { field: 'phoneNumber', label: 'Phone Number' },
   { field: 'remarks', label: 'Remarks' },
 ] as const
@@ -421,23 +493,24 @@ async function toAuditShape(
     customerName: string
     projectName: string | null
     statusValueId: string | null
-    locationValueId: string | null
-    materialValueId: string | null
+    locationValueIds: string[]
+    materialValueIds: string[]
     enquiryDetails: string | null
     quoteValue: number | null
     probabilityValueId: string | null
     expectedOrderDate: Date | null
     expectedBillingDate: Date | null
     email: string | null
+    contactPerson: string | null
     phoneNumber: string | null
     remarks: string | null
   },
 ): Promise<Record<string, unknown>> {
   const valueIds = [
     values.statusValueId,
-    values.locationValueId,
-    values.materialValueId,
     values.probabilityValueId,
+    ...values.locationValueIds,
+    ...values.materialValueIds,
   ].filter((id): id is string => Boolean(id))
 
   const [dropdowns, salesUser] = await Promise.all([
@@ -463,8 +536,10 @@ async function toAuditShape(
     customerName: values.customerName,
     projectName: values.projectName,
     status: values.statusValueId ? labelById.get(values.statusValueId) ?? null : null,
-    location: values.locationValueId ? labelById.get(values.locationValueId) ?? null : null,
-    material: values.materialValueId ? labelById.get(values.materialValueId) ?? null : null,
+    // Joined into one string so the history reads
+    // "Locations: DXB -> DXB, SHJ" rather than diffing two lists.
+    location: joinLabels(values.locationValueIds, labelById),
+    material: joinLabels(values.materialValueIds, labelById),
     enquiryDetails: values.enquiryDetails,
     quoteValue:
       values.quoteValue === null ? null : formatCurrency(values.quoteValue, currency),
@@ -474,9 +549,17 @@ async function toAuditShape(
     expectedOrderDate: isoDay(values.expectedOrderDate),
     expectedBillingDate: isoDay(values.expectedBillingDate),
     email: values.email,
+    contactPerson: values.contactPerson,
     phoneNumber: values.phoneNumber,
     remarks: values.remarks,
   }
+}
+
+/** Sorted so a reordered selection does not read as a change. */
+function joinLabels(ids: string[], labelById: Map<string, string>): string | null {
+  if (ids.length === 0) return null
+  const labels = ids.map((id) => labelById.get(id) ?? id).sort((a, b) => a.localeCompare(b))
+  return labels.join(', ')
 }
 
 export async function updateEnquiryAction(
@@ -498,16 +581,17 @@ export async function updateEnquiryAction(
         customerName: true,
         projectName: true,
         statusValueId: true,
-        locationValueId: true,
-        materialValueId: true,
         enquiryDetails: true,
         quoteValue: true,
         probabilityValueId: true,
         expectedOrderDate: true,
         expectedBillingDate: true,
         email: true,
+        contactPerson: true,
         phoneNumber: true,
         remarks: true,
+        locations: { select: { valueId: true } },
+        materials: { select: { valueId: true } },
       },
     })
     if (!existing) throw new NotFoundError('This request no longer exists.')
@@ -519,37 +603,38 @@ export async function updateEnquiryAction(
     await Promise.all([
       assertDropdownSelections(company.id, {
         STATUS: raw.statusValueId,
-        LOCATION: raw.locationValueId,
-        MATERIAL: raw.materialValueId,
         PROBABILITY: raw.probabilityValueId,
       }),
+      assertDropdownSelectionList(company.id, 'LOCATION', raw.locationValueIds),
+      assertDropdownSelectionList(company.id, 'MATERIAL', raw.materialValueIds),
       assertCompanyMember(company.id, raw.salesResponsibleId),
     ])
 
     const enforced = await enforceAutomationRules({
       companyId: company.id,
+      /*
+       * Only the single-valued fields take part. A rule like "when Material is
+       * X" has no single answer once a request carries three materials, and
+       * "then Material is X" does not say whether to add or replace - so the
+       * rule builder offers Status and Probability, which is what the linkage
+       * was for.
+       */
       selection: {
         STATUS: raw.statusValueId,
-        LOCATION: raw.locationValueId,
-        MATERIAL: raw.materialValueId,
         PROBABILITY: raw.probabilityValueId,
       },
       previous: {
         STATUS: existing.statusValueId,
-        LOCATION: existing.locationValueId,
-        MATERIAL: existing.materialValueId,
         PROBABILITY: existing.probabilityValueId,
       },
     })
 
-    // Automation replaces a selection; it never clears one. These four are
-    // required by the form, so falling back to what was submitted keeps that
-    // guarantee rather than quietly writing a null.
+    // Automation replaces a selection; it never clears one. Both are required
+    // by the form, so falling back to what was submitted keeps that guarantee
+    // rather than quietly writing a null.
     const data: EnquiryFormValues = {
       ...raw,
       statusValueId: enforced.STATUS ?? raw.statusValueId,
-      locationValueId: enforced.LOCATION ?? raw.locationValueId,
-      materialValueId: enforced.MATERIAL ?? raw.materialValueId,
       probabilityValueId: enforced.PROBABILITY ?? raw.probabilityValueId,
     }
 
@@ -560,6 +645,7 @@ export async function updateEnquiryAction(
         customerName: data.customerName,
         actorId: user.id,
         email: data.email,
+        contactPerson: data.contactPerson,
         phone: data.phoneNumber,
       }),
     )
@@ -570,8 +656,14 @@ export async function updateEnquiryAction(
       toAuditShape(company.id, company.currency, {
         ...existing,
         quoteValue: existing.quoteValue === null ? null : Number(existing.quoteValue),
+        locationValueIds: existing.locations.map((link) => link.valueId),
+        materialValueIds: existing.materials.map((link) => link.valueId),
       }),
-      toAuditShape(company.id, company.currency, persistable),
+      toAuditShape(company.id, company.currency, {
+        ...persistable,
+        locationValueIds: data.locationValueIds,
+        materialValueIds: data.materialValueIds,
+      }),
     ])
 
     const changes: FieldChange[] = diffRecords(before, after, [...AUDITED_FIELDS])
@@ -581,6 +673,9 @@ export async function updateEnquiryAction(
         where: { id: existing.id },
         data: { ...persistable, updatedById: user.id },
       })
+
+      await syncSelectionSet(tx, 'location', existing.id, data.locationValueIds)
+      await syncSelectionSet(tx, 'material', existing.id, data.materialValueIds)
 
       if (changes.length > 0) {
         await writeAudit(

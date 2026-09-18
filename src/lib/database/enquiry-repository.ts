@@ -38,13 +38,20 @@ const enquirySelect = {
   createdById: true,
   salesResponsibleId: true,
   statusValueId: true,
-  locationValueId: true,
-  materialValueId: true,
   probabilityValueId: true,
+  contactPerson: true,
   salesResponsible: { select: { id: true, name: true, displayCode: true, avatarColor: true } },
   status: { select: { id: true, label: true, color: true, isActive: true } },
-  location: { select: { id: true, label: true, color: true, isActive: true } },
-  material: { select: { id: true, label: true, color: true, isActive: true } },
+  // Ordered by the admin's own sort order, so several badges in a cell read
+  // the same way round on every request.
+  locations: {
+    select: { value: { select: { id: true, label: true, color: true, isActive: true } } },
+    orderBy: { value: { sortOrder: 'asc' as const } },
+  },
+  materials: {
+    select: { value: { select: { id: true, label: true, color: true, isActive: true } } },
+    orderBy: { value: { sortOrder: 'asc' as const } },
+  },
   probability: {
     select: { id: true, label: true, color: true, isActive: true, numericValue: true },
   },
@@ -76,14 +83,15 @@ export type PipelineRow = {
   customerName: string
   projectName: string | null
   status: BadgeValue | null
-  location: BadgeValue | null
-  material: BadgeValue | null
+  locations: BadgeValue[]
+  materials: BadgeValue[]
   enquiryDetails: string | null
   quoteValue: number | null
   probability: (BadgeValue & { numericValue: number | null }) | null
   expectedOrderDate: string | null
   expectedBillingDate: string | null
   email: string | null
+  contactPerson: string | null
   phoneNumber: string | null
   remarks: string | null
   createdAt: string
@@ -123,8 +131,8 @@ function serializeRow(row: EnquiryRow): PipelineRow {
     customerName: row.customerName,
     projectName: row.projectName,
     status: row.status,
-    location: row.location,
-    material: row.material,
+    locations: row.locations.map((link) => link.value),
+    materials: row.materials.map((link) => link.value),
     enquiryDetails: row.enquiryDetails,
     quoteValue: row.quoteValue === null ? null : Number(row.quoteValue),
     probability: row.probability
@@ -137,6 +145,7 @@ function serializeRow(row: EnquiryRow): PipelineRow {
     expectedOrderDate: row.expectedOrderDate?.toISOString() ?? null,
     expectedBillingDate: row.expectedBillingDate?.toISOString() ?? null,
     email: row.email,
+    contactPerson: row.contactPerson,
     phoneNumber: row.phoneNumber,
     remarks: row.remarks,
     createdAt: row.createdAt.toISOString(),

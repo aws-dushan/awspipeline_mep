@@ -377,3 +377,103 @@ export function MultiSelect({
     </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Multi-select with a trigger, used by the forms                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A field that holds several values at once.
+ *
+ * The filter menus use the bare `MultiSelect` list, because they are already
+ * inside a popover. A form field needs its own trigger, and the trigger has to
+ * say what is selected without growing the row it sits in - so it names the
+ * first couple and counts the rest.
+ */
+export function MultiSelectField({
+  options,
+  values,
+  onChange,
+  placeholder = 'Select...',
+  searchPlaceholder = 'Search...',
+  emptyText = 'No options',
+  invalid,
+  disabled,
+  compact,
+  id,
+  className,
+}: {
+  options: ComboboxOption[]
+  values: string[]
+  onChange: (values: string[]) => void
+  placeholder?: string
+  searchPlaceholder?: string
+  emptyText?: string
+  invalid?: boolean
+  disabled?: boolean
+  compact?: boolean
+  id?: string
+  className?: string
+}) {
+  const [open, setOpen] = React.useState(false)
+
+  const selected = React.useMemo(
+    () => options.filter((option) => values.includes(option.value)),
+    [options, values],
+  )
+
+  // Two names then a count: enough to recognise the selection, short enough to
+  // stay on one line in a grid cell.
+  const summary =
+    selected.length === 0
+      ? placeholder
+      : selected.length <= 2
+        ? selected.map((option) => option.label).join(', ')
+        : `${selected[0].label}, ${selected[1].label} +${selected.length - 2}`
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          id={id}
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          aria-invalid={invalid || undefined}
+          title={selected.length > 2 ? selected.map((option) => option.label).join(', ') : undefined}
+          className={cn(
+            'group flex w-full items-center gap-2 rounded-md border bg-white text-left text-[13.5px] shadow-xs',
+            'transition-[border-color,box-shadow] duration-150 ease-out-quart',
+            'border-ink-200 hover:border-ink-300',
+            'focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/12',
+            'disabled:cursor-not-allowed disabled:bg-ink-50 disabled:text-ink-400',
+            compact ? 'h-8 px-2.5' : 'h-9 px-3',
+            invalid && 'border-negative focus:border-negative focus:ring-red-500/12',
+            className,
+          )}
+        >
+          <span className={cn('flex-1 truncate', selected.length === 0 && 'text-ink-400')}>
+            {summary}
+          </span>
+          {selected.length > 0 ? (
+            <span className="shrink-0 rounded-full bg-brand-50 px-1.5 text-[11px] font-medium text-brand-700 tabular">
+              {selected.length}
+            </span>
+          ) : null}
+          <ChevronsUpDown className="size-3.5 shrink-0 text-ink-400" />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent align="start" sideOffset={6} className="w-[var(--radix-popover-trigger-width)] min-w-56 p-0">
+        <MultiSelect
+          options={options}
+          values={values}
+          onChange={onChange}
+          searchPlaceholder={searchPlaceholder}
+          emptyText={emptyText}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}

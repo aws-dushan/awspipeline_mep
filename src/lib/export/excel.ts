@@ -120,6 +120,7 @@ type ExcelRowValues = {
   expectedOrderDate: Date | null
   expectedBillingDate: Date | null
   email: string
+  contactPerson: string
   phoneNumber: string
   remarks: string
 }
@@ -143,8 +144,11 @@ function toExcelRow(enquiry: PipelineRow): ExcelRowValues {
     customerName: enquiry.customerName,
     projectName: enquiry.projectName ?? '',
     status: enquiry.status?.label ?? '',
-    location: enquiry.location?.label ?? '',
-    material: enquiry.material?.label ?? '',
+    // Several values become one comma-separated cell: a spreadsheet column
+    // holds one value per row, and splitting a request across rows would make
+    // every total in the sheet wrong.
+    location: enquiry.locations.map((value) => value.label).join(', '),
+    material: enquiry.materials.map((value) => value.label).join(', '),
     enquiryDetails: enquiry.enquiryDetails ?? '',
     quoteValue: enquiry.quoteValue,
     // A probability with a numeric weight exports as a real percentage cell so
@@ -156,6 +160,7 @@ function toExcelRow(enquiry: PipelineRow): ExcelRowValues {
     expectedOrderDate: toExcelDate(enquiry.expectedOrderDate),
     expectedBillingDate: toExcelDate(enquiry.expectedBillingDate),
     email: enquiry.email ?? '',
+    contactPerson: enquiry.contactPerson ?? '',
     phoneNumber: enquiry.phoneNumber ?? '',
     remarks: enquiry.remarks ?? '',
   }

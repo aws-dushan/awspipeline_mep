@@ -103,6 +103,14 @@ async function main() {
     } catch (error) {
       console.log(`FAILED — ${error.message.split('\n')[0]}`)
       record('step', `${name}: ${error.message.split('\n')[0]}`, page.url())
+      // A shot of the failure, not only of the successes: what the screen
+      // looked like when a step gave up is the first thing worth seeing.
+      await page
+        .screenshot({
+          path: `${shotDir}/FAILED-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png`,
+          fullPage: false,
+        })
+        .catch(() => {})
     }
   }
 
@@ -128,6 +136,7 @@ async function main() {
   })
 
   let companyId
+  let companyName = null
   let createdUserStamp = null
 
   await step('sign in', async () => {
@@ -151,6 +160,22 @@ async function main() {
     await page.waitForLoadState('networkidle')
     companyId = /\/c\/([^/]+)/.exec(page.url())?.[1]
     if (!companyId) throw new Error(`no company reached — landed on ${page.url()}`)
+
+    /*
+     * Discovered, not hardcoded: later steps pick this company out of a list,
+     * and naming one here would tie the check to one installation. The first
+     * header button is the logo and has no text, so this takes the first one
+     * that does - the company switcher, which reads "AD
+AWS Distribution".
+     */
+    const headerLabels = await page.locator('header button').allInnerTexts()
+    const switcher = headerLabels.map((text) => text.trim()).find(Boolean) ?? ''
+    // Dropping the blank segments: the label ends with a newline, so taking
+    // the last one straight off gives an empty string - which then matches
+    // every button on the page.
+    const parts = switcher.split('\n').map((part) => part.trim()).filter(Boolean)
+    companyName = parts[parts.length - 1] ?? ''
+    if (!companyName) throw new Error('could not read the company name from the header')
   })
 
   if (!companyId) {
@@ -201,6 +226,7 @@ async function main() {
       'Exp Order Date',
       'Exp Billing Date',
       'EMAIL',
+      'Contact Person',
       'PHONE NUMBER',
       'REMARKS',
     ]
@@ -488,13 +514,14 @@ async function main() {
       'Customer name',
       'Project name',
       'Status',
-      'Location',
-      'Material',
+      'Locations',
+      'Materials',
       'Enquiry details',
       'Probability',
     ]
     const OPTIONAL = [
       'Quote value',
+      'Contact person',
       'Expected order date',
       'Expected billing date',
       'Email',
@@ -706,19 +733,20 @@ async function main() {
       throw new Error(`error banner did not explain the problem: ${bannerText.slice(0, 80)}`)
     }
 
-    // Assign whichever company exists and save for real. Naming one here ties
-    // the check to a particular installation's data.
-    const companyOption = page.locator('[role=dialog] button').filter({ hasText: /^[A-Z]/ })
-    const count = await companyOption.count()
-    let assigned = false
-    for (let i = 0; i < count; i++) {
-      const label = (await companyOption.nth(i).innerText()).trim()
-      if (/^(Create user|Cancel|Show|Hide)/i.test(label) || label.length > 60) continue
-      await companyOption.nth(i).click()
-      assigned = true
-      break
-    }
-    if (!assigned) throw new Error('no company available to assign')
+    /*
+     * Assign whichever company exists, found through the Companies field
+     * itself rather than by name. Naming one ties the check to a particular
+     * installation's data; hunting for "a button with a capital letter" picks
+     * up the Role selector instead, which is what it did.
+     */
+    // Substring, not an anchored pattern: the button wraps the name in a
+    // colour dot and a checkbox, so its text carries surrounding whitespace.
+    const companyOption = page
+      .locator('[role=dialog] button')
+      .filter({ hasText: companyName })
+      .first()
+    await companyOption.waitFor({ timeout: 8000 })
+    await companyOption.click()
     await page.waitForTimeout(500)
     await page.click('button:has-text("Create user")')
     await page.waitForTimeout(2500)

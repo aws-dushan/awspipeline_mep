@@ -125,14 +125,39 @@ export async function assertDropdownSelections(
   )
 }
 
+/**
+ * Every value in a set must belong to this company and to the right type.
+ *
+ * The single-value assertion is not enough for locations and materials: a
+ * payload can carry several, and one forged id among them would otherwise
+ * slip through unchecked.
+ */
+export async function assertDropdownSelectionList(
+  companyId: string,
+  typeKey: DropdownTypeKey,
+  valueIds: string[],
+): Promise<void> {
+  await Promise.all(valueIds.map((valueId) => assertDropdownValue(companyId, typeKey, valueId)))
+}
+
 export async function getDropdownUsageCounts(
   companyId: string,
 ): Promise<Map<string, number>> {
-  const [status, location, material, probability] = await Promise.all([
+  // Status and probability are single values on the request; locations and
+  // materials are sets, so they are counted from their join tables.
+  const [status, probability, location, material] = await Promise.all([
     prisma.enquiry.groupBy({ by: ['statusValueId'], where: { companyId }, _count: true }),
-    prisma.enquiry.groupBy({ by: ['locationValueId'], where: { companyId }, _count: true }),
-    prisma.enquiry.groupBy({ by: ['materialValueId'], where: { companyId }, _count: true }),
     prisma.enquiry.groupBy({ by: ['probabilityValueId'], where: { companyId }, _count: true }),
+    prisma.enquiryLocation.groupBy({
+      by: ['valueId'],
+      where: { enquiry: { companyId } },
+      _count: true,
+    }),
+    prisma.enquiryMaterial.groupBy({
+      by: ['valueId'],
+      where: { enquiry: { companyId } },
+      _count: true,
+    }),
   ])
 
   const counts = new Map<string, number>()
@@ -142,9 +167,9 @@ export async function getDropdownUsageCounts(
   }
 
   for (const row of status) add(row.statusValueId, row._count)
-  for (const row of location) add(row.locationValueId, row._count)
-  for (const row of material) add(row.materialValueId, row._count)
   for (const row of probability) add(row.probabilityValueId, row._count)
+  for (const row of location) add(row.valueId, row._count)
+  for (const row of material) add(row.valueId, row._count)
 
   return counts
 }

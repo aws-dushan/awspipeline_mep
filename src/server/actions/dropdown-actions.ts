@@ -205,9 +205,9 @@ export async function toggleDropdownValueAction(
         companyId: company.id,
         OR: [
           { statusValueId: value.id },
-          { locationValueId: value.id },
-          { materialValueId: value.id },
           { probabilityValueId: value.id },
+          { locations: { some: { valueId: value.id } } },
+          { materials: { some: { valueId: value.id } } },
         ],
       },
     })

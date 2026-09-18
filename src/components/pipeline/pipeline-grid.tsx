@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ProbabilityBadge, ValueBadge } from '@/components/ui/badge'
 import { Avatar, Skeleton, Tooltip } from '@/components/ui/primitives'
-import type { PipelineRow } from '@/lib/database/enquiry-repository'
+import type { BadgeValue, PipelineRow } from '@/lib/database/enquiry-repository'
 import { formatCalendarDate, formatCurrency } from '@/lib/format'
 import {
   SORTABLE_KEYS,
@@ -643,28 +643,10 @@ function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string):
       )
 
     case 'location':
-      return row.location ? (
-        <ValueBadge
-          label={row.location.label}
-          color={row.location.color}
-          inactive={!row.location.isActive}
-          size="sm"
-        />
-      ) : (
-        <Empty />
-      )
+      return <BadgeSet values={row.locations} />
 
     case 'material':
-      return row.material ? (
-        <ValueBadge
-          label={row.material.label}
-          color={row.material.color}
-          inactive={!row.material.isActive}
-          size="sm"
-        />
-      ) : (
-        <Empty />
-      )
+      return <BadgeSet values={row.materials} />
 
     case 'enquiryDetails':
       return <Truncated value={row.enquiryDetails} />
@@ -726,6 +708,9 @@ function renderCell(key: PipelineColumnKey, row: PipelineRow, currency: string):
     case 'phoneNumber':
       return <Truncated value={row.phoneNumber} className="tabular" />
 
+    case 'contactPerson':
+      return <Truncated value={row.contactPerson} />
+
     case 'remarks':
       return <Truncated value={row.remarks} className="text-ink-500" />
 
@@ -739,6 +724,42 @@ function Empty() {
 }
 
 /** Truncates with a tooltip, but only when the text is actually long. */
+/**
+ * Several values in a cell one line tall.
+ *
+ * Two badges then a count: a row stays scannable when someone picks five
+ * materials, and the full list is a hover away. Showing them all would either
+ * push the row taller or clip the last one mid-word, and neither reads as
+ * "there are more".
+ */
+function BadgeSet({ values }: { values: BadgeValue[] }) {
+  if (values.length === 0) return <Empty />
+
+  const shown = values.slice(0, 2)
+  const rest = values.length - shown.length
+  const node = (
+    <span className="flex items-center gap-1 overflow-hidden">
+      {shown.map((value) => (
+        <ValueBadge
+          key={value.id}
+          label={value.label}
+          color={value.color}
+          inactive={!value.isActive}
+          size="sm"
+        />
+      ))}
+      {rest > 0 ? (
+        <span className="shrink-0 rounded-full bg-ink-100 px-1.5 py-0.5 text-[11px] font-medium text-ink-500 tabular">
+          +{rest}
+        </span>
+      ) : null}
+    </span>
+  )
+
+  if (rest === 0) return node
+  return <Tooltip content={values.map((value) => value.label).join(', ')}>{node}</Tooltip>
+}
+
 function Truncated({ value, className }: { value: string | null; className?: string }) {
   if (!value) return <Empty />
 

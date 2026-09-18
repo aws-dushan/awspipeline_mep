@@ -256,6 +256,33 @@ model DropdownType {
   @@map("dropdown_types")
 }
 
+/// Which locations a request covers. A row per pairing; the composite key is
+/// what stops the same location being added twice.
+model EnquiryLocation {
+  enquiryId String
+  valueId   String
+
+  enquiry Enquiry       @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  value   DropdownValue @relation("EnquiryLocations", fields: [valueId], references: [id], onDelete: Restrict)
+
+  @@id([enquiryId, valueId])
+  @@index([valueId])
+  @@map("enquiry_locations")
+}
+
+/// Which materials a request covers. See EnquiryLocation.
+model EnquiryMaterial {
+  enquiryId String
+  valueId   String
+
+  enquiry Enquiry       @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  value   DropdownValue @relation("EnquiryMaterials", fields: [valueId], references: [id], onDelete: Restrict)
+
+  @@id([enquiryId, valueId])
+  @@index([valueId])
+  @@map("enquiry_materials")
+}
+
 model DropdownValue {
   id        String          @id @default(cuid())
   companyId String
@@ -280,9 +307,10 @@ model DropdownValue {
   rulesThen AutomationRule[] @relation("RuleThenValue")
 
   statusEnquiries      Enquiry[] @relation("EnquiryStatus")
-  locationEnquiries    Enquiry[] @relation("EnquiryLocation")
-  materialEnquiries    Enquiry[] @relation("EnquiryMaterial")
   probabilityEnquiries Enquiry[] @relation("EnquiryProbability")
+
+  locationEnquiries EnquiryLocation[] @relation("EnquiryLocations")
+  materialEnquiries EnquiryMaterial[] @relation("EnquiryMaterials")
 
   @@unique([companyId, typeKey, label])
   @@index([companyId, typeKey, isActive, sortOrder])
@@ -340,6 +368,8 @@ model Customer {
   companyId String
   name      String
   email     String?
+  /// Who to ask for. Optional, and shown in front of the phone number.
+  contactPerson String?
   phone     String?
   isActive  Boolean  @default(true)
 
@@ -376,14 +406,15 @@ model Enquiry {
   customerName       String
   projectName        String?
   statusValueId       String?
-  locationValueId     String?
-  materialValueId     String?
   enquiryDetails      String?
   quoteValue          Decimal?  @db.Decimal(16, 2)
   probabilityValueId  String?
   expectedOrderDate   DateTime?
   expectedBillingDate DateTime?
   email               String?
+  /// Copied from the customer when one is picked, then editable: a request may
+  /// name a site contact of its own without changing the customer record.
+  contactPerson       String?
   phoneNumber         String?
   remarks             String?
 
@@ -401,9 +432,11 @@ model Enquiry {
   customer         Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
   salesResponsible User?          @relation("EnquirySalesResponsible", fields: [salesResponsibleId], references: [id], onDelete: SetNull)
   status           DropdownValue? @relation("EnquiryStatus", fields: [statusValueId], references: [id], onDelete: Restrict)
-  location         DropdownValue? @relation("EnquiryLocation", fields: [locationValueId], references: [id], onDelete: Restrict)
-  material         DropdownValue? @relation("EnquiryMaterial", fields: [materialValueId], references: [id], onDelete: Restrict)
   probability      DropdownValue? @relation("EnquiryProbability", fields: [probabilityValueId], references: [id], onDelete: Restrict)
+
+  /// A request can span several locations and several materials.
+  locations EnquiryLocation[]
+  materials EnquiryMaterial[]
   createdBy        User?          @relation("EnquiryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy        User?          @relation("EnquiryUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   deletedBy        User?          @relation("EnquiryDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
@@ -417,8 +450,6 @@ model Enquiry {
   @@index([companyId, isDeleted, enquiryDate(sort: Desc)])
   @@index([companyId, salesResponsibleId])
   @@index([companyId, statusValueId])
-  @@index([companyId, locationValueId])
-  @@index([companyId, materialValueId])
   @@index([companyId, probabilityValueId])
   @@index([companyId, expectedOrderDate])
   @@index([companyId, expectedBillingDate])

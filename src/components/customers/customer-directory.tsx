@@ -4,7 +4,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Building2, Mail, Pencil, Phone, Plus, Search } from 'lucide-react'
+import { Building2, Mail, Pencil, Phone, Plus, Search, User } from 'lucide-react'
 
 import { AdminPageHeader, AdminShell } from '@/components/admin/admin-page-header'
 import {
@@ -42,7 +42,7 @@ export function CustomerDirectory({
   const [dialogOpen, setDialogOpen] = React.useState(false)
 
   function openCreate() {
-    setEditing({ name: '', email: null, phone: null })
+    setEditing({ name: '', email: null, contactPerson: null, phone: null })
     setDialogOpen(true)
   }
 
@@ -51,6 +51,7 @@ export function CustomerDirectory({
       id: customer.id,
       name: customer.name,
       email: customer.email,
+      contactPerson: customer.contactPerson,
       phone: customer.phone,
       isActive: customer.isActive,
     })
@@ -72,6 +73,7 @@ export function CustomerDirectory({
       (customer) =>
         customer.name.toLowerCase().includes(query) ||
         (customer.email ?? '').toLowerCase().includes(query) ||
+        (customer.contactPerson ?? '').toLowerCase().includes(query) ||
         (customer.phone ?? '').toLowerCase().includes(query),
     )
   }, [customers, search])
@@ -98,7 +100,7 @@ export function CustomerDirectory({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, email or phone..."
+            placeholder="Search name, contact, email or phone..."
             leading={<Search />}
           />
         </div>
@@ -198,13 +200,19 @@ export function CustomerDirectory({
                       <span className="truncate">{customer.email}</span>
                     </a>
                   ) : null}
+                  {customer.contactPerson ? (
+                    <span className="flex min-w-0 items-center gap-2 text-ink-600">
+                      <User className="size-3.5 shrink-0 text-ink-400" />
+                      <span className="truncate">{customer.contactPerson}</span>
+                    </span>
+                  ) : null}
                   {customer.phone ? (
                     <span className="flex min-w-0 items-center gap-2 text-ink-600">
                       <Phone className="size-3.5 shrink-0 text-ink-400" />
                       <span className="truncate tabular">{customer.phone}</span>
                     </span>
                   ) : null}
-                  {!customer.email && !customer.phone ? (
+                  {!customer.email && !customer.contactPerson && !customer.phone ? (
                     <span className="text-[12px] text-ink-300">No contact details</span>
                   ) : null}
                 </div>

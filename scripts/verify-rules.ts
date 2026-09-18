@@ -139,8 +139,8 @@ async function main() {
           enquiryDate: new Date(Date.UTC(2026, 8, 10 + row.serialNo)),
           customerName: row.customer,
           statusValueId: row.status,
-          locationValueId: row.loc,
-          materialValueId: matAc.id,
+          locations: { create: [{ valueId: row.loc }] },
+          materials: { create: [{ valueId: matAc.id }] },
           probabilityValueId: row.prob,
           quoteValue: row.quote,
           createdById: owner?.id ?? null,
@@ -322,7 +322,7 @@ async function main() {
     const gridRows = await prisma.enquiry.count({ where: gridWhere })
     check('Export row count matches the filtered grid', exportRows === gridRows && exportRows === 1)
 
-    check('Export carries every pipeline column', PIPELINE_COLUMNS.length === 16)
+    check('Export carries every pipeline column', PIPELINE_COLUMNS.length === 17)
     check(
       'Export headers are in the agreed order',
       PIPELINE_COLUMNS.map((c) => c.exportLabel).join('|') ===
@@ -330,7 +330,7 @@ async function main() {
           'JOB NO', 'Enquiry Date', 'Sales Responsible', 'Customer Name',
           'Project Name', 'Status', 'Location', 'Material', 'Enquiry Details',
           'Quote Value', 'Probability', 'Exp Order Date', 'Exp Billing Date',
-          'Email', 'Phone Number', 'Remarks',
+          'Email', 'Contact Person', 'Phone Number', 'Remarks',
         ].join('|'),
     )
     check(
@@ -545,8 +545,8 @@ async function main() {
           customerName: 'No Date Trading',
           projectName: 'Undated project',
           statusValueId: statusQuoted.id,
-          locationValueId: locDxb.id,
-          materialValueId: matAc.id,
+          locations: { create: [{ valueId: locDxb.id }] },
+          materials: { create: [{ valueId: matAc.id }] },
           probabilityValueId: prob50.id,
           enquiryDetails: 'Logged before the enquiry date was known',
         },

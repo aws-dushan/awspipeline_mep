@@ -8,6 +8,7 @@ export type CustomerOption = {
   id: string
   name: string
   email: string | null
+  contactPerson: string | null
   phone: string | null
   isActive: boolean
   enquiryCount: number
@@ -33,6 +34,7 @@ export async function listCustomers(
           OR: [
             { name: { contains: options.search, mode: 'insensitive' } },
             { email: { contains: options.search, mode: 'insensitive' } },
+            { contactPerson: { contains: options.search, mode: 'insensitive' } },
             { phone: { contains: options.search, mode: 'insensitive' } },
           ],
         }
@@ -48,6 +50,7 @@ export async function listCustomers(
       id: true,
       name: true,
       email: true,
+      contactPerson: true,
       phone: true,
       isActive: true,
       _count: { select: { enquiries: true } },
@@ -64,6 +67,7 @@ export async function listCustomers(
       id: customer.id,
       name: customer.name,
       email: customer.email,
+      contactPerson: customer.contactPerson,
       phone: customer.phone,
       isActive: customer.isActive,
       enquiryCount: customer._count.enquiries,
@@ -94,6 +98,7 @@ export async function resolveCustomer(
     customerName: string
     actorId: string
     email?: string | null
+    contactPerson?: string | null
     phone?: string | null
   },
 ): Promise<{ id: string; name: string; created: boolean }> {
@@ -127,6 +132,7 @@ export async function resolveCustomer(
       companyId: options.companyId,
       name: trimmedName,
       email: options.email ?? null,
+      contactPerson: options.contactPerson ?? null,
       phone: options.phone ?? null,
       createdById: options.actorId,
     },
@@ -138,6 +144,6 @@ export async function resolveCustomer(
 export async function getCustomerById(companyId: string, customerId: string) {
   return prisma.customer.findFirst({
     where: { id: customerId, companyId },
-    select: { id: true, name: true, email: true, phone: true, isActive: true },
+    select: { id: true, name: true, email: true, contactPerson: true, phone: true, isActive: true },
   })
 }

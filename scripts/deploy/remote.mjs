@@ -35,6 +35,10 @@ export function connectApp(env) {
         username: env.APP_USER,
         password: env.APP_PASS,
         readyTimeout: 25000,
+        // Long-lived uses - the database tunnel in particular - sit idle
+        // between queries, and the server closes a silent connection.
+        keepaliveInterval: 15000,
+        keepaliveCountMax: 6,
         // The servers are older Debian builds; allow their key exchange set.
         algorithms: {
           serverHostKey: [
@@ -63,6 +67,8 @@ export function connectData(env, appConn) {
           username: env.DATA_USER,
           password: env.DATA_PASS,
           readyTimeout: 25000,
+          keepaliveInterval: 15000,
+          keepaliveCountMax: 6,
         })
     })
   })

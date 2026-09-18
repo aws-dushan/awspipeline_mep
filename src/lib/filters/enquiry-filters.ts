@@ -283,8 +283,14 @@ export function buildEnquiryWhere({
   if (filters.projectName) and.push({ projectName: contains(filters.projectName) })
 
   if (filters.status?.length) and.push({ statusValueId: { in: filters.status } })
-  if (filters.location?.length) and.push({ locationValueId: { in: filters.location } })
-  if (filters.material?.length) and.push({ materialValueId: { in: filters.material } })
+  // A request matches when *any* of its locations is selected, which is what
+  // ticking two of them in the filter menu means.
+  if (filters.location?.length) {
+    and.push({ locations: { some: { valueId: { in: filters.location } } } })
+  }
+  if (filters.material?.length) {
+    and.push({ materials: { some: { valueId: { in: filters.material } } } })
+  }
   if (filters.probability?.length) and.push({ probabilityValueId: { in: filters.probability } })
 
   if (filters.enquiryDetails) and.push({ enquiryDetails: contains(filters.enquiryDetails) })
