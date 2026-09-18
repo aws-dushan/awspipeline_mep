@@ -657,6 +657,39 @@ async function main() {
   }
 
   /*
+   * The global admin screens sit outside /c/[companyId] and have to show the
+   * company you came from. They used to show the first in the list, which is
+   * alphabetical - so working in "UAE" and opening Users switched you to
+   * "Oman" and pointed every link in the top bar there too.
+   */
+  await step('the admin screens keep the company you are in', async () => {
+    const switcherLabel = async () => {
+      const labels = await page.locator('header button').allInnerTexts()
+      const first = labels.map((t) => t.trim()).filter(Boolean)[0] ?? ''
+      const parts = first.split('\n').map((x) => x.trim()).filter(Boolean)
+      return parts[parts.length - 1] ?? ''
+    }
+
+    await page.goto(`${BASE}/c/${companyId}/pipeline`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(800)
+    const inCompany = await switcherLabel()
+    if (!inCompany) throw new Error('could not read the company switcher')
+
+    for (const path of ['/admin/users', '/admin/companies']) {
+      await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' })
+      await page.waitForTimeout(800)
+      const here = await switcherLabel()
+      if (here !== inCompany) {
+        throw new Error(`${path} shows "${here}" after working in "${inCompany}"`)
+      }
+      const pipelineHref = await page.locator('a:has-text("Pipeline")').first().getAttribute('href')
+      if (pipelineHref && !pipelineHref.includes(companyId)) {
+        throw new Error(`${path}: the Pipeline link points at another company`)
+      }
+    }
+  })
+
+  /*
    * Job numbers read <prefix><number>_<suffix>. The three parts are company
    * settings, so the screen that sets them has to show what they combine into.
    */

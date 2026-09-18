@@ -14,6 +14,11 @@ import { TooltipProvider } from '@/components/ui/primitives'
 import { useLiveChannel } from '@/hooks/use-live-channel'
 import { withBasePath } from '@/lib/base-path'
 import type { CompanyAccess } from '@/lib/auth/session'
+import {
+  LAST_COMPANY_COOKIE,
+  LAST_COMPANY_COOKIE_MAX_AGE,
+  LAST_COMPANY_COOKIE_PATH,
+} from '@/lib/company/last-company'
 import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import type { Role } from '@prisma/client'
@@ -53,6 +58,20 @@ export function AppShell({
    * keeps one EventSource per company), and it keeps the approvals badge
    * accurate without the user reloading.
    */
+  /*
+   * Remember which company this is.
+   *
+   * The global admin screens sit outside `/c/[companyId]` and cannot know it
+   * from the URL, so they read this back. Written from the browser because a
+   * Server Component may not set a cookie, and it is only a breadcrumb - the
+   * server still checks that whoever presents it may reach that company.
+   */
+  React.useEffect(() => {
+    document.cookie =
+      `${LAST_COMPANY_COOKIE}=${company.id}; path=${LAST_COMPANY_COOKIE_PATH};` +
+      ` max-age=${LAST_COMPANY_COOKIE_MAX_AGE}; samesite=lax`
+  }, [company.id])
+
   const liveStatus = useLiveChannel(company.id, {
     channels: ['delete-requests'],
     onEvent: (event) => {
