@@ -347,6 +347,39 @@ async function main() {
     await page.waitForTimeout(300)
   })
 
+  /*
+   * A refused save has to show which field it means.
+   *
+   * The server reports a validation failure against its own payload shape -
+   * `data.projectName` - while the control is called `projectName`. Nothing
+   * matched, so "Please correct the highlighted fields" arrived with nothing
+   * highlighted. Rejected on purpose here; the row never saves, so this writes
+   * nothing.
+   */
+  await step('a refused save marks the field it means', async () => {
+    const row = page.locator('table tbody tr').first()
+    await row.dblclick()
+    await page.waitForSelector('button[aria-label="Save changes"]', { timeout: 8000 })
+    await page.waitForTimeout(400)
+
+    const PROJECT_NAME_CELL = 5
+    const project = row.locator('td').nth(PROJECT_NAME_CELL).locator('input')
+    const before = await project.inputValue()
+    await project.fill('')
+    await page.click('button[aria-label="Save changes"]')
+    await page.waitForTimeout(2500)
+
+    if ((await page.locator('button[aria-label="Save changes"]').count()) === 0) {
+      throw new Error('an empty project name was accepted')
+    }
+    const marked = await page.locator('table tbody tr [aria-invalid="true"]').count()
+    if (marked === 0) throw new Error('the save was refused without marking any field')
+
+    await project.fill(before)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400)
+  })
+
   await step('escape abandons an inline edit', async () => {
     const row = page.locator('table tbody tr').first()
     await row.dblclick()

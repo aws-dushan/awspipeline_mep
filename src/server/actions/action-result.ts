@@ -59,6 +59,20 @@ function isActionResult(value: unknown): value is ActionResult<unknown> {
   )
 }
 
+/**
+ * The name of the control a validation error belongs to.
+ *
+ * Actions take `{ companyId, [entityId], data }` and the form owns `data`, so
+ * Zod reports `data.projectName` while the control is called `projectName`.
+ * Without dropping that wrapper nothing matches: the caller marks no field,
+ * and "Please correct the highlighted fields" arrives with nothing
+ * highlighted - which is exactly as useless as it sounds.
+ */
+function fieldKey(path: (string | number)[]): string {
+  const parts = path[0] === 'data' ? path.slice(1) : path
+  return parts.join('.') || 'form'
+}
+
 export async function runAction<T>(
   label: string,
   body: () => Promise<T | ActionResult<T>>,
@@ -73,7 +87,7 @@ export async function runAction<T>(
     if (error instanceof ZodError) {
       const fieldErrors: Record<string, string> = {}
       for (const issue of error.issues) {
-        const key = issue.path.join('.') || 'form'
+        const key = fieldKey(issue.path)
         if (!fieldErrors[key]) fieldErrors[key] = issue.message
       }
       return fail('Please correct the highlighted fields.', { fieldErrors, code: 'validation' })
