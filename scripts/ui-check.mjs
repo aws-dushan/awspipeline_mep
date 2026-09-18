@@ -20,6 +20,18 @@ try {
 }
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:3000'
+
+/*
+ * Whether this run may write to the database it is driving.
+ *
+ * Off unless asked for, because this script is also pointed at the live system
+ * by `npm run release`, and the steps that create a user or save an edit would
+ * leave that data behind on every deploy. It is how two dozen throwaway
+ * accounts once ended up in production.
+ *
+ * Point it at a local server with UI_ALLOW_WRITES=1 for the full set.
+ */
+const ALLOW_WRITES = process.env.UI_ALLOW_WRITES === '1'
 const USER = process.env.UI_USER ?? 'ERP_Admin'
 const PASS = process.env.UI_PASS ?? process.env.SEED_ADMIN_PASSWORD
 if (!PASS) {
@@ -75,6 +87,10 @@ async function main() {
     }
   })
 
+  const skip = (name, why) => {
+    console.log(`  ${name.padEnd(46)}skipped — ${why}`)
+  }
+
   const step = async (name, fn) => {
     process.stdout.write(`  ${name.padEnd(46)}`)
     try {
@@ -90,7 +106,7 @@ async function main() {
     }
   }
 
-  console.log(`\nDriving ${BASE}\n`)
+  console.log(`\nDriving ${BASE}${ALLOW_WRITES ? '' : '  (read-only)'}\n`)
 
   // --- Sign in -------------------------------------------------------------
   await step('login page', async () => {
@@ -138,10 +154,26 @@ async function main() {
   })
 
   if (!companyId) {
-    console.log('\nCould not reach a company pipeline — is a company set up?\n')
+    /*
+     * A system with no company yet is a real state - it is what a fresh
+     * installation looks like - so the run reports what it could check and
+     * stops rather than failing. Anything that actually went wrong on the way
+     * here is still reported below, which is why this falls through to the
+     * report rather than returning from the middle of the run.
+     */
+    const text = await page.locator('body').innerText()
+    const looksEmpty = /no companies yet/i.test(text)
+    if (looksEmpty) {
+      console.log('\n  No company exists yet - the pipeline checks were skipped.')
+    } else {
+      record(
+        'step',
+        'could not reach a pipeline, and this is not the empty state',
+        page.url(),
+      )
+    }
     await browser.close()
-    process.exitCode = 1
-    return
+    return report()
   }
 
   // --- Pipeline ------------------------------------------------------------
@@ -233,6 +265,15 @@ async function main() {
     // different field when it does.
     const PROJECT_NAME_CELL = 5
     const project = row.locator('td').nth(PROJECT_NAME_CELL).locator('input')
+
+    if (!ALLOW_WRITES) {
+      // Everything above is observation; saving is the one part that changes
+      // the data, so read-only stops here and leaves the row as it found it.
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(400)
+      return
+    }
+
     const before = await project.inputValue()
     const after = before.endsWith(' *') ? before.slice(0, -2) : `${before} *`
     await project.fill(after)
@@ -636,7 +677,7 @@ async function main() {
     await page.waitForTimeout(400)
   })
 
-  await step('create a user end to end', async () => {
+  const createUserStep = async () => {
     await page.goto(`${BASE}/admin/users`, { waitUntil: 'networkidle' })
     await page.click('button:has-text("New user")')
     await page.waitForSelector('text=Create user', { timeout: 8000 })
@@ -676,7 +717,15 @@ async function main() {
     const created = page.locator(`text=Zed Tester ${stamp}`)
     await created.first().waitFor({ timeout: 10000 })
     createdUserStamp = stamp
-  })
+  }
+
+  /*
+   * The only step that creates a record, so it is the only one that must not
+   * run against the live system. The screen it exercises is still opened by
+   * the read-only pass above.
+   */
+  if (ALLOW_WRITES) await step('create a user end to end', createUserStep)
+  else skip('create a user end to end', 'read-only: it would add a real user')
 
   await step('customer edit dialog', async () => {
     await page.goto(`${BASE}/c/${companyId}/customers`, { waitUntil: 'networkidle' })
@@ -724,7 +773,11 @@ async function main() {
 
   await browser.close()
 
-  // --- Report --------------------------------------------------------------
+  return report()
+}
+
+/** Print what went wrong, and set the exit code. Every path ends here. */
+function report() {
   console.log(`\nScreenshots: ${shotDir}`)
   if (problems.length === 0) {
     console.log('\nNo console errors, page errors or failed requests.\n')

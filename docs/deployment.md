@@ -132,3 +132,14 @@ after copying `.next/static` and `public` beside it.
 Drives a real browser through every screen and fails on any console error,
 page error or failed request. `UI_USER` and `UI_PASS` (or
 `SEED_ADMIN_PASSWORD` in `.env`) supply the credentials.
+
+**It is read-only unless told otherwise.** Two steps write - creating a user
+and saving an inline edit - and they are skipped unless `UI_ALLOW_WRITES=1`.
+`npm run release` never sets it, because this runs against the live system and
+anything it creates stays there. Run the full set against a local server:
+
+    UI_ALLOW_WRITES=1 BASE_URL=http://localhost:3100/awsmepplt node scripts/ui-check.mjs
+
+A system with no company yet is treated as a legitimate state: the pipeline
+checks are skipped rather than failed, unless the empty state itself is
+wrong.

@@ -187,6 +187,28 @@ Status of the Pipeline / Enquiry Tracking System build.
       during development and has been used from a workstation
 - [ ] Clear the development and QA records from the database before handover
 
+## Go-live
+
+- [x] Every record cleared; `erp_admin` is the only account. The four dropdown
+      *types* are kept - they are the fixed catalogue, not company data, and
+      creating a company depends on them
+- [x] Backup taken first and verified readable:
+      `/home/admin-data/backups/pipeline_mep-20260918-091423.dump` on AWS-Data
+- [x] The empty-system path checked on the live site: sign in, "No companies
+      yet", "Create the first company" routes into admin, the company form
+      opens with the country code field
+- [x] The browser check is read-only unless `UI_ALLOW_WRITES=1`, and
+      `npm run release` never sets it. Two of its steps create a user and save
+      an edit; run against the live system on every deploy, that is what put
+      26 throwaway accounts into the database
+- [x] A system with no company is treated as a legitimate state by the check
+      rather than a failure
+- [ ] Rotate the `pipeline_app` database password - it was set during
+      development and has been used from a workstation
+- [ ] `SEED_ADMIN_PASSWORD` in the local `.env` no longer matches the live
+      administrator password. Remove it rather than let a stale credential sit
+      there looking current
+
 ## Known gaps / next steps
 
 - [x] Brand assets traced to SVG per colour, so the mark is crisp at any size

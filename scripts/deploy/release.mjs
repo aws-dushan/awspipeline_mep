@@ -45,11 +45,35 @@ console.log(`Releasing ${branch} @ ${git('rev-parse', '--short', 'HEAD')}`)
 run('push to GitHub', 'git', ['push', 'origin', branch])
 run('deploy to the portal', process.execPath, ['scripts/deploy/push.mjs'])
 
-if (!process.argv.includes('--no-verify')) {
-  // Against the deployed site, not localhost - the point is to check what
-  // was just shipped.
+/*
+ * The browser pass needs an account on the live system, and a workstation
+ * should not be holding the production administrator's password. So it runs
+ * only when one is supplied for the run, and says plainly when it does not -
+ * a verification that is quietly skipped is worse than one that is absent.
+ *
+ * The deploy itself is already verified without credentials: the app answers
+ * at its prefix inside the container, and the edge routes to it.
+ */
+const haveCredentials = Boolean(process.env.UI_PASS)
+
+if (!process.argv.includes('--no-verify') && !haveCredentials) {
+  console.log('\n=== verify the deployed site')
+  console.log('Skipped: no UI_PASS in the environment.')
+  console.log(`To run it:  UI_PASS=<admin password> npm run release`)
+  console.log('The deploy checks above already confirmed the app and the edge.')
+}
+
+if (!process.argv.includes('--no-verify') && haveCredentials) {
+  /*
+   * Against the deployed site, and read-only.
+   *
+   * This drives the live system, so it must not leave anything behind. The
+   * steps that create a user or save an edit are skipped; run the full set
+   * against a local server with UI_ALLOW_WRITES=1 before releasing.
+   */
   run('verify the deployed site', process.execPath, ['scripts/ui-check.mjs'], {
     BASE_URL: PUBLIC_URL,
+    UI_ALLOW_WRITES: '',
   })
 }
 
