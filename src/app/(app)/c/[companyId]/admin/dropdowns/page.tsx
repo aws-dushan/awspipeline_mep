@@ -8,6 +8,7 @@ import {
   getDropdownCatalogue,
   getDropdownUsageCounts,
 } from '@/lib/database/dropdown-repository'
+import { getRequiredFields } from '@/lib/database/field-rule-repository'
 import { can } from '@/lib/permissions'
 
 export const metadata: Metadata = { title: 'Dropdown settings' }
@@ -21,10 +22,11 @@ export default async function DropdownSettingsPage({
   const { user, company } = await requireCompanyPage(companyId)
   if (!can(user, 'dropdown:manage')) redirect(`/c/${company.id}/pipeline`)
 
-  const [catalogue, usage, automationRules] = await Promise.all([
+  const [catalogue, usage, automationRules, requiredFields] = await Promise.all([
     getDropdownCatalogue(company.id, { includeInactive: true }),
     getDropdownUsageCounts(company.id),
     getAutomationRules(company.id, { includeInactive: true }),
+    getRequiredFields(company.id),
   ])
 
   return (
@@ -34,6 +36,7 @@ export default async function DropdownSettingsPage({
       catalogue={catalogue}
       usage={Object.fromEntries(usage)}
       automationRules={automationRules}
+      requiredFields={[...requiredFields]}
     />
   )
 }

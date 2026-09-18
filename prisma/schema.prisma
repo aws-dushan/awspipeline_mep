@@ -52,6 +52,7 @@ enum AuditAction {
   DROPDOWN_VALUE_UPDATED
   DROPDOWN_VALUE_DEACTIVATED
   DROPDOWN_VALUE_REACTIVATED
+  REQUIRED_FIELDS_CHANGED
   AUTOMATION_RULE_CREATED
   AUTOMATION_RULE_UPDATED
   AUTOMATION_RULE_DELETED
@@ -78,6 +79,7 @@ enum AuditEntity {
   USER
   CUSTOMER
   DROPDOWN_VALUE
+  ENQUIRY_FIELD_RULE
   AUTOMATION_RULE
   DELETE_REQUEST
   SUPERVISOR_ASSIGNMENT
@@ -104,6 +106,7 @@ model Company {
   customers      Customer[]
   dropdownValues DropdownValue[]
   automationRules AutomationRule[]
+  fieldRules      EnquiryFieldRule[]
   auditLogs      AuditLog[]
   deleteRequests DeleteRequest[]
   counter        CompanyCounter?
@@ -254,6 +257,25 @@ model DropdownType {
   values DropdownValue[]
 
   @@map("dropdown_types")
+}
+
+/// Which fields a request must carry, decided per company.
+///
+/// A row exists only for a field an administrator has an opinion about; a
+/// field with no row falls back to the built-in default. Storing the decision
+/// rather than the absence keeps "nobody has touched this yet" distinct from
+/// "somebody turned it off".
+model EnquiryFieldRule {
+  companyId  String
+  /// The form field, e.g. "projectName". Matches the key the form uses.
+  field      String
+  isRequired Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, field])
+  @@map("enquiry_field_rules")
 }
 
 /// Which locations a request covers. A row per pairing; the composite key is

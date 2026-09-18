@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+import {
+  DEFAULT_REQUIRED_FIELDS,
+  fieldLabel,
+  type EnquiryFieldKey,
+} from '@/lib/pipeline/enquiry-fields'
+
 /**
  * Optional free text. Accepts "", null or undefined - a cleared control can
  * send any of the three - and normalises them all to null.
@@ -30,24 +36,8 @@ const optionalCalendarDate = optionalId.refine(
   { message: 'Enter a valid date' },
 )
 
-/**
- * A reference that must be chosen.
- *
- * Same normalisation as `optionalId` - a cleared picker can send "", null or
- * undefined - but all three are rejected rather than stored as null.
- */
-/** A set of references where at least one must be chosen. */
-const requiredIdList = (message: string) =>
-  z
-    .array(z.string().trim().min(1))
-    .default([])
-    .refine((values) => values.length > 0, { message })
-
-const requiredId = (message: string) =>
-  z
-    .union([z.string(), z.null(), z.undefined()])
-    .transform((value) => (value ?? '').trim())
-    .refine((value) => value.length > 0, { message })
+/** A set of references, any number of them including none. */
+const optionalIdList = z.array(z.string().trim().min(1)).default([])
 
 /** Accepts "1,250.50", "AED 1250", 1250 - rejects anything else. */
 const optionalCurrency = z
@@ -66,76 +56,109 @@ const optionalCurrency = z
   })
 
 /**
- * The ten fields a request cannot be saved without.
+ * Every field a request can carry, each accepting whatever the control sends.
  *
- * Job No is not among the form's inputs - it is generated on save - but it is
- * mandatory in the same sense: every record has one. So is the enquiry date,
- * which the server takes from the clock when the request is created and never
- * revises; it is a record of when the request came in, not a field to choose.
- * Everything else here is genuinely optional and may be left blank.
+ * Nothing is required here except the customer: which fields are mandatory is
+ * a decision per company, applied on top of this shape rather than baked into
+ * it. That keeps the parsed type the same whatever a company decides, so the
+ * form, the grid and the server all speak about the same object.
  */
-export const enquiryFormSchema = z
-  .object({
-    salesResponsibleId: requiredId('Select who is responsible for this request'),
-    /**
-     * The picker sends an existing customer id, or leaves it empty and sends
-     * only `customerName` when the user chose "Add new customer".
-     */
-    customerId: optionalId,
-    customerName: z
-      .string()
-      .trim()
-      .min(1, 'Select a customer or add a new one')
-      .max(200, 'Customer name must be 200 characters or fewer'),
-    projectName: z
-      .string()
-      .trim()
-      .min(1, 'Project name is required')
-      .max(200, 'Project name must be 200 characters or fewer'),
-    statusValueId: requiredId('Select a status'),
-    // A request can span several of each; at least one is still required.
-    locationValueIds: requiredIdList('Select at least one location'),
-    materialValueIds: requiredIdList('Select at least one material'),
-    enquiryDetails: z
-      .string()
-      .trim()
-      .min(1, 'Enquiry details are required')
-      .max(2000, 'Enquiry details must be 2000 characters or fewer'),
-    quoteValue: optionalCurrency,
-    probabilityValueId: requiredId('Select a probability'),
-    expectedOrderDate: optionalCalendarDate,
-    expectedBillingDate: optionalCalendarDate,
-    email: optionalId.refine(
-      (value) => value === null || z.string().email().safeParse(value).success,
-      { message: 'Enter a valid email address' },
-    ),
-    contactPerson: optionalText(120, 'Contact person'),
-    phoneNumber: optionalText(60, 'Phone number'),
-    remarks: optionalText(2000, 'Remarks'),
-  })
-  .refine(
-    (data) =>
-      !data.expectedBillingDate ||
-      !data.expectedOrderDate ||
-      data.expectedBillingDate >= data.expectedOrderDate,
-    {
-      message: 'Billing date cannot be before the order date',
-      path: ['expectedBillingDate'],
-    },
-  )
+const enquiryShape = z.object({
+  salesResponsibleId: optionalId,
+  /**
+   * The picker sends an existing customer id, or leaves it empty and sends
+   * only `customerName` when the user chose "Add new customer".
+   */
+  customerId: optionalId,
+  /**
+   * Always required, and not configurable: a request that names no customer
+   * is not a request, and the column it is stored in does not accept nothing.
+   */
+  customerName: z
+    .string()
+    .trim()
+    .min(1, 'Select a customer or add a new one')
+    .max(200, 'Customer name must be 200 characters or fewer'),
+  projectName: optionalText(200, 'Project name'),
+  statusValueId: optionalId,
+  locationValueIds: optionalIdList,
+  materialValueIds: optionalIdList,
+  enquiryDetails: optionalText(2000, 'Enquiry details'),
+  quoteValue: optionalCurrency,
+  probabilityValueId: optionalId,
+  expectedOrderDate: optionalCalendarDate,
+  expectedBillingDate: optionalCalendarDate,
+  email: optionalId.refine(
+    (value) => value === null || z.string().email().safeParse(value).success,
+    { message: 'Enter a valid email address' },
+  ),
+  contactPerson: optionalText(120, 'Contact person'),
+  phoneNumber: optionalText(60, 'Phone number'),
+  remarks: optionalText(2000, 'Remarks'),
+})
+
+/** Nothing entered: an empty string, nothing at all, or an empty set. */
+function isBlank(value: unknown): boolean {
+  if (value === null || value === undefined) return true
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'string') return value.trim() === ''
+  return false
+}
+
+/**
+ * The request form, as this company has configured it.
+ *
+ * The same builder runs in the browser and on the server, from the same stored
+ * rules, so what the form asks for and what the server insists on cannot drift
+ * apart.
+ */
+export function buildEnquiryFormSchema(required: ReadonlySet<EnquiryFieldKey>) {
+  return enquiryShape
+    .superRefine((data, ctx) => {
+      for (const field of required) {
+        if (!isBlank((data as Record<string, unknown>)[field])) continue
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${fieldLabel(field)} is required`,
+        })
+      }
+    })
+    .refine(
+      (data) =>
+        !data.expectedBillingDate ||
+        !data.expectedOrderDate ||
+        data.expectedBillingDate >= data.expectedOrderDate,
+      {
+        message: 'Billing date cannot be before the order date',
+        path: ['expectedBillingDate'],
+      },
+    )
+}
+
+/**
+ * The form with the built-in defaults, for callers that have no company to
+ * hand - type inference, and the rule checks.
+ */
+export const enquiryFormSchema = buildEnquiryFormSchema(DEFAULT_REQUIRED_FIELDS)
 
 export type EnquiryFormInput = z.input<typeof enquiryFormSchema>
 export type EnquiryFormValues = z.infer<typeof enquiryFormSchema>
 
+/*
+ * The envelope only. The form inside it is validated separately, against the
+ * rules the company has configured - which cannot be known until the company
+ * has been resolved from this id.
+ */
 export const createEnquirySchema = z.object({
   companyId: z.string().min(1),
-  data: enquiryFormSchema,
+  data: z.unknown(),
 })
 
 export const updateEnquirySchema = z.object({
   companyId: z.string().min(1),
   enquiryId: z.string().min(1),
-  data: enquiryFormSchema,
+  data: z.unknown(),
 })
 
 export const deleteRequestSchema = z.object({

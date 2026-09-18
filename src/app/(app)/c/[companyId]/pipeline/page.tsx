@@ -6,6 +6,7 @@ import { getAutomationRules } from '@/lib/database/automation-repository'
 import { listCustomers } from '@/lib/database/customer-repository'
 import { getCompanyMembers, getDropdownCatalogue } from '@/lib/database/dropdown-repository'
 import { queryPipelinePage } from '@/lib/database/enquiry-repository'
+import { getRequiredFields } from '@/lib/database/field-rule-repository'
 import { parseEnquiryFilters } from '@/lib/filters/enquiry-filters'
 import { can } from '@/lib/permissions'
 
@@ -30,13 +31,15 @@ export default async function PipelinePage({
 
   const filters = parseEnquiryFilters(await searchParams)
 
-  const [page, catalogue, members, customers, automationRules] = await Promise.all([
-    queryPipelinePage({ companyId: company.id, filters }),
-    getDropdownCatalogue(company.id, { includeInactive: true }),
-    getCompanyMembers(company.id),
-    listCustomers(company.id),
-    getAutomationRules(company.id),
-  ])
+  const [page, catalogue, members, customers, automationRules, requiredFields] =
+    await Promise.all([
+      queryPipelinePage({ companyId: company.id, filters }),
+      getDropdownCatalogue(company.id, { includeInactive: true }),
+      getCompanyMembers(company.id),
+      listCustomers(company.id),
+      getAutomationRules(company.id),
+      getRequiredFields(company.id),
+    ])
 
   return (
     <PipelineView
@@ -54,6 +57,7 @@ export default async function PipelinePage({
       members={members}
       customers={customers}
       automationRules={automationRules}
+      requiredFields={[...requiredFields]}
       initialFilters={filters}
       initialPage={page}
     />

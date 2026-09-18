@@ -31,9 +31,13 @@ import { Avatar } from '@/components/ui/primitives'
 import type { PipelineRow } from '@/lib/database/enquiry-repository'
 import { enquiryToFormValues } from '@/lib/pipeline/enquiry-draft'
 import { applyAutomationRules, type AutomationRule } from '@/lib/pipeline/automation'
+import {
+  isConfigurableField,
+  type EnquiryFieldKey,
+} from '@/lib/pipeline/enquiry-fields'
 import { cn } from '@/lib/utils'
 import {
-  enquiryFormSchema,
+  buildEnquiryFormSchema,
   EMPTY_ENQUIRY_FORM,
   type EnquiryFormInput,
 } from '@/lib/validation/enquiry'
@@ -56,6 +60,9 @@ export type EnquiryDrawerProps = {
     customers: DrawerOption[]
   }
   automationRules: AutomationRule[]
+  /** Which fields this company insists on. Drives both the markers and the
+   * validation, from the same list the server checks against. */
+  requiredFields: string[]
   defaultSalesResponsibleId?: string | null
   onSubmit: (values: EnquiryFormInput) => Promise<{ ok: boolean; fieldErrors?: Record<string, string> }>
   onCustomerCreated: () => void
@@ -71,11 +78,29 @@ export function EnquiryDrawer({
   record,
   options,
   automationRules,
+  requiredFields,
   defaultSalesResponsibleId,
   onSubmit,
   onCustomerCreated,
 }: EnquiryDrawerProps) {
   const isEdit = Boolean(record)
+
+  /*
+   * The form this company has configured.
+   *
+   * Built from the same list the server validates against, so the marker on a
+   * label, the error the browser raises and the error the server would raise
+   * all say the same thing.
+   */
+  const required = React.useMemo(
+    () => new Set(requiredFields.filter(isConfigurableField)),
+    [requiredFields],
+  )
+  const schema = React.useMemo(() => buildEnquiryFormSchema(required), [required])
+  const isRequired = React.useCallback(
+    (field: EnquiryFieldKey) => required.has(field),
+    [required],
+  )
   const [automationNote, setAutomationNote] = React.useState<string | null>(null)
   const { confirm, confirmDialog } = useConfirm()
 
@@ -103,7 +128,7 @@ export function EnquiryDrawer({
     getValues,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<EnquiryFormInput>({
-    resolver: zodResolver(enquiryFormSchema) as never,
+    resolver: zodResolver(schema) as never,
     defaultValues,
     mode: 'onBlur',
   })
@@ -166,8 +191,8 @@ export function EnquiryDrawer({
        */
       const current = getValues()
       const selection = {
-        STATUS: current.statusValueId || null,
-        PROBABILITY: current.probabilityValueId || null,
+        STATUS: (current.statusValueId as string) || null,
+        PROBABILITY: (current.probabilityValueId as string) || null,
       }
 
       const outcome = applyAutomationRules(selection, automationRules, changedType)
@@ -279,7 +304,7 @@ export function EnquiryDrawer({
                 <Field
                   label="Project name"
                   htmlFor="enquiry-project-name"
-                  required
+                  required={isRequired('projectName')}
                   error={errors.projectName?.message}
                 >
                   <Input
@@ -293,7 +318,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="salesResponsibleId"
                   render={({ field }) => (
-                    <Field label="Sales responsible" required error={errors.salesResponsibleId?.message}>
+                    <Field
+                      label="Sales responsible"
+                      required={isRequired('salesResponsibleId')}
+                      error={errors.salesResponsibleId?.message}
+                    >
                       <Combobox
                         options={options.users}
                         value={field.value || null}
@@ -333,7 +362,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="statusValueId"
                   render={({ field }) => (
-                    <Field label="Status" required error={errors.statusValueId?.message}>
+                    <Field
+                      label="Status"
+                      required={isRequired('statusValueId')}
+                      error={errors.statusValueId?.message}
+                    >
                       <Combobox
                         options={options.status}
                         value={field.value || null}
@@ -352,7 +385,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="probabilityValueId"
                   render={({ field }) => (
-                    <Field label="Probability" required error={errors.probabilityValueId?.message}>
+                    <Field
+                      label="Probability"
+                      required={isRequired('probabilityValueId')}
+                      error={errors.probabilityValueId?.message}
+                    >
                       <Combobox
                         options={options.probability}
                         value={field.value || null}
@@ -371,7 +408,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="locationValueIds"
                   render={({ field }) => (
-                    <Field label="Locations" required error={errors.locationValueIds?.message}>
+                    <Field
+                      label="Locations"
+                      required={isRequired('locationValueIds')}
+                      error={errors.locationValueIds?.message}
+                    >
                       <MultiSelectField
                         options={options.location}
                         values={field.value ?? []}
@@ -389,7 +430,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="materialValueIds"
                   render={({ field }) => (
-                    <Field label="Materials" required error={errors.materialValueIds?.message}>
+                    <Field
+                      label="Materials"
+                      required={isRequired('materialValueIds')}
+                      error={errors.materialValueIds?.message}
+                    >
                       <MultiSelectField
                         options={options.material}
                         values={field.value ?? []}
@@ -408,7 +453,11 @@ export function EnquiryDrawer({
             {/* --- Commercials --------------------------------------------- */}
             <Section title="Commercials">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label={`Quote value (${currency})`} error={errors.quoteValue?.message}>
+                <Field
+                  label={`Quote value (${currency})`}
+                  required={isRequired('quoteValue')}
+                  error={errors.quoteValue?.message}
+                >
                   <Input
                     inputMode="decimal"
                     className="tabular"
@@ -421,7 +470,11 @@ export function EnquiryDrawer({
                   control={control}
                   name="expectedOrderDate"
                   render={({ field }) => (
-                    <Field label="Expected order date" error={errors.expectedOrderDate?.message}>
+                    <Field
+                      label="Expected order date"
+                      required={isRequired('expectedOrderDate')}
+                      error={errors.expectedOrderDate?.message}
+                    >
                       <DatePicker
                         value={field.value}
                         onChange={(value) => field.onChange(value ?? '')}
@@ -437,6 +490,7 @@ export function EnquiryDrawer({
                   render={({ field }) => (
                     <Field
                       label="Expected billing date"
+                      required={isRequired('expectedBillingDate')}
                       error={errors.expectedBillingDate?.message}
                     >
                       <DatePicker
@@ -454,7 +508,7 @@ export function EnquiryDrawer({
             {/* --- Contact & notes ----------------------------------------- */}
             <Section title="Contact and notes">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Email" error={errors.email?.message}>
+                <Field label="Email" required={isRequired('email')} error={errors.email?.message}>
                   <Input
                     type="email"
                     autoComplete="off"
@@ -463,17 +517,25 @@ export function EnquiryDrawer({
                   />
                 </Field>
 
-                <Field label="Contact person" error={errors.contactPerson?.message}>
+                <Field
+                  label="Contact person"
+                  required={isRequired('contactPerson')}
+                  error={errors.contactPerson?.message}
+                >
                   <Input {...register('contactPerson')} />
                 </Field>
 
-                <Field label="Phone number" error={errors.phoneNumber?.message}>
+                <Field
+                  label="Phone number"
+                  required={isRequired('phoneNumber')}
+                  error={errors.phoneNumber?.message}
+                >
                   <Input {...register('phoneNumber')} />
                 </Field>
 
                 <Field
                   label="Enquiry details"
-                  required
+                  required={isRequired('enquiryDetails')}
                   error={errors.enquiryDetails?.message}
                   className="sm:col-span-2"
                 >
@@ -484,7 +546,12 @@ export function EnquiryDrawer({
                   />
                 </Field>
 
-                <Field label="Remarks" error={errors.remarks?.message} className="sm:col-span-2">
+                <Field
+                  label="Remarks"
+                  required={isRequired('remarks')}
+                  error={errors.remarks?.message}
+                  className="sm:col-span-2"
+                >
                   <Textarea
                     rows={3}
                     {...register('remarks')}

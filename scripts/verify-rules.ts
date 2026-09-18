@@ -30,6 +30,11 @@ import {
   updateUserSchema,
 } from '../src/lib/validation/admin'
 import { formatJobNo } from '../src/lib/pipeline/job-number'
+import {
+  DEFAULT_REQUIRED_FIELDS,
+  resolveRequiredFields,
+} from '../src/lib/pipeline/enquiry-fields'
+import { buildEnquiryFormSchema } from '../src/lib/validation/enquiry'
 
 const prisma = new PrismaClient()
 
@@ -516,7 +521,47 @@ async function main() {
     )
 
     // ==========================================================================
-    section('10. Job numbers')
+    section('10. Mandatory fields are a company decision')
+    // ==========================================================================
+    /*
+     * A field with no stored row has never been decided on, so it keeps its
+     * built-in default. That is why the absence of a row and a row set to
+     * false must not be the same thing - otherwise a later change to a default
+     * would silently re-require something an administrator turned off.
+     */
+    check(
+      'With nothing stored, the defaults apply',
+      [...resolveRequiredFields([])].sort().join(',') ===
+        [...DEFAULT_REQUIRED_FIELDS].sort().join(','),
+    )
+    check(
+      'Turning a default off removes it',
+      !resolveRequiredFields([{ field: 'statusValueId', isRequired: false }]).has('statusValueId'),
+    )
+    check(
+      'Turning a non-default on adds it',
+      resolveRequiredFields([{ field: 'projectName', isRequired: true }]).has('projectName'),
+    )
+    check(
+      'A field that is not configurable is ignored',
+      !resolveRequiredFields([{ field: 'jobNo', isRequired: true }]).has(
+        'jobNo' as never,
+      ),
+    )
+    check(
+      'The form built from a set demands exactly that set',
+      (() => {
+        const schema = buildEnquiryFormSchema(new Set(['projectName'] as const))
+        const blank = { customerName: 'Someone', projectName: '' }
+        const result = schema.safeParse(blank)
+        if (result.success) return false
+        const paths = result.error.issues.map((i) => i.path.join('.'))
+        return paths.includes('projectName') && !paths.includes('statusValueId')
+      })(),
+    )
+
+    // ==========================================================================
+    section('11. Job numbers')
   // ==========================================================================
   check("Prefix and country code compose as J1000_DXB", formatJobNo('J', 1000, 'DXB') === 'J1000_DXB')
   check('A company with neither gets a bare number', formatJobNo('', 1000, '') === '1000')
@@ -525,7 +570,7 @@ async function main() {
   check('Stray whitespace never reaches a job number', formatJobNo(' J ', 1000, ' DXB ') === 'J1000_DXB')
 
   // ==========================================================================
-  section('11. Mandatory fields')
+  section('12. Request fields')
     // ==========================================================================
     /*
      * Ten fields are mandatory - S.No, Job No, Sales Responsible, Customer Name,

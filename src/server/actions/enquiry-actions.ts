@@ -21,7 +21,9 @@ import { formatCurrency, parseCalendarDate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
 import { formatJobNo } from '@/lib/pipeline/job-number'
 import { publish, publishPipelineChange } from '@/lib/realtime/event-bus'
+import { getRequiredFields } from '@/lib/database/field-rule-repository'
 import {
+  buildEnquiryFormSchema,
   createCustomerSchema,
   createEnquirySchema,
   deleteRequestSchema,
@@ -146,7 +148,10 @@ export async function createEnquiryAction(
   return runAction('createEnquiry', async () => {
     const parsed = createEnquirySchema.parse(input)
     const { user, company } = await requireCompanyPermission(parsed.companyId, 'pipeline:create')
-    const raw = parsed.data
+    // Validated against this company's rules, not a fixed set. Parsed here
+    // rather than in the envelope so the field names in any error match the
+    // controls rather than carrying a "data." prefix.
+    const raw = buildEnquiryFormSchema(await getRequiredFields(company.id)).parse(parsed.data)
 
     await Promise.all([
       assertDropdownSelections(company.id, {
@@ -568,7 +573,7 @@ export async function updateEnquiryAction(
   return runAction('updateEnquiry', async () => {
     const parsed = updateEnquirySchema.parse(input)
     const { user, company } = await requireCompanyAccess(parsed.companyId)
-    const raw = parsed.data
+    const raw = buildEnquiryFormSchema(await getRequiredFields(company.id)).parse(parsed.data)
 
     const existing = await prisma.enquiry.findFirst({
       where: { id: parsed.enquiryId, companyId: company.id, isDeleted: false },

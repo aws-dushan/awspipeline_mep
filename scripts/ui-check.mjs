@@ -362,20 +362,21 @@ async function main() {
     await page.waitForSelector('button[aria-label="Save changes"]', { timeout: 8000 })
     await page.waitForTimeout(400)
 
-    const PROJECT_NAME_CELL = 5
-    const project = row.locator('td').nth(PROJECT_NAME_CELL).locator('input')
-    const before = await project.inputValue()
-    await project.fill('')
+    // Enquiry details, which is still mandatory - the project name is not.
+    const ENQUIRY_DETAILS_CELL = 9
+    const details = row.locator('td').nth(ENQUIRY_DETAILS_CELL).locator('textarea')
+    const before = await details.inputValue()
+    await details.fill('')
     await page.click('button[aria-label="Save changes"]')
     await page.waitForTimeout(2500)
 
     if ((await page.locator('button[aria-label="Save changes"]').count()) === 0) {
-      throw new Error('an empty project name was accepted')
+      throw new Error('empty enquiry details were accepted')
     }
     const marked = await page.locator('table tbody tr [aria-invalid="true"]').count()
     if (marked === 0) throw new Error('the save was refused without marking any field')
 
-    await project.fill(before)
+    await details.fill(before)
     await page.keyboard.press('Escape')
     await page.waitForTimeout(400)
   })
@@ -526,52 +527,65 @@ async function main() {
    * but are generated on save, so they are not inputs and cannot be checked
    * here.
    */
-  await step('only the agreed fields are mandatory', async () => {
-    const REQUIRED = [
-      'Sales responsible',
-      'Customer name',
-      'Project name',
-      'Status',
-      'Locations',
-      'Materials',
-      'Enquiry details',
-      'Probability',
-    ]
-    const OPTIONAL = [
-      'Quote value',
-      'Contact person',
-      'Expected order date',
-      'Expected billing date',
-      'Email',
-      'Phone number',
-      'Remarks',
-    ]
+  /*
+   * The screen that decides and the form that asks must agree.
+   *
+   * Which fields are mandatory is now an administrator's choice, so asserting
+   * a fixed list here would only test the list. What matters is the
+   * invariant: whatever is ticked under Mandatory fields is exactly what the
+   * request form marks, and the server refuses a request missing any of them.
+   */
+  await step('the form asks for exactly what admin marked mandatory', async () => {
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400)
+    const leave = page.getByRole('button', { name: /discard|leave/i })
+    if (await leave.count()) await leave.first().click()
 
-    const marked = await page.$$eval('[role="dialog"] label', (els) =>
-      els.map((el) => ({
-        text: el.textContent?.replace(/\*$/, '').trim() ?? '',
-        required: Boolean(el.querySelector('[data-required], .text-negative')) ||
-          (el.textContent ?? '').trim().endsWith('*'),
-      })),
+    await page.goto(`${BASE}/c/${companyId}/admin/dropdowns`, { waitUntil: 'networkidle' })
+    await page.click('button:has-text("Mandatory fields")')
+    await page.waitForTimeout(700)
+    const rows = await page.$$eval('button', (els) =>
+      els
+        .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())
+        .filter((text) => /(Mandatory|Optional)$/.test(text)),
     )
-    const find = (name) => marked.find((m) => m.text.startsWith(name))
+    if (rows.length === 0) throw new Error('the Mandatory fields tab listed nothing')
+    const configured = rows
+      .filter((row) => row.endsWith('Mandatory'))
+      .map((row) => row.replace(/Mandatory$/, '').trim())
 
-    for (const name of REQUIRED) {
-      const field = find(name)
-      if (!field) throw new Error(`"${name}" is not on the form`)
-      if (!field.required) throw new Error(`"${name}" should be mandatory and is not marked`)
+    await page.goto(`${BASE}/c/${companyId}/pipeline`, { waitUntil: 'networkidle' })
+    await page.click('button:has-text("Add Request")')
+    await page.waitForSelector('text=Add request', { timeout: 8000 })
+    await page.waitForTimeout(700)
+
+    const labels = await page.$$eval('[role="dialog"] label', (els) =>
+      els.map((el) => {
+        const text = (el.textContent ?? '').trim()
+        return { text: text.replace(/\*$/, '').trim(), required: text.endsWith('*') }
+      }),
+    )
+    // Customer name is always required and is not one of the choices.
+    const marked = labels
+      .filter((l) => l.required && l.text !== 'Customer name')
+      .map((l) => l.text)
+      .sort()
+
+    const expected = [...configured].sort()
+    if (marked.join('|') !== expected.join('|')) {
+      throw new Error(`form marks ${marked.join(', ')} but settings say ${expected.join(', ')}`)
     }
-    for (const name of OPTIONAL) {
-      const field = find(name)
-      if (field?.required) throw new Error(`"${name}" is marked mandatory and should not be`)
+    if (!labels.some((l) => l.text === 'Customer name' && l.required)) {
+      throw new Error('customer name is not marked required')
+    }
+    // Set by the system, so they are not fields at all.
+    for (const absent of ['Enquiry date', 'Job no']) {
+      if (labels.some((l) => l.text.startsWith(absent))) {
+        throw new Error(`"${absent}" is still a field on the form`)
+      }
     }
 
-    // The enquiry date is taken from the clock when the request is created and
-    // is never chosen, so it must not appear on the form at all.
-    if (find('Enquiry date')) throw new Error('the enquiry date is still a form field')
-
-    // And the rules are enforced, not just advertised: saving an empty form
-    // must be refused with the fields named.
+    // Enforced, not merely advertised.
     await page
       .locator('[role="dialog"]')
       .getByRole('button', { name: /^(Add request|Save changes)$/ })
@@ -584,12 +598,6 @@ async function main() {
     if (summary === 0) throw new Error('an empty request was not refused')
   })
 
-  /*
-   * Picking a customer prefills the contact details. Picking a *different* one
-   * has to replace them - the first version only filled an empty field, so
-   * changing your mind about the customer left the previous one's email and
-   * phone sitting on the request.
-   */
   await step('contact details follow the customer', async () => {
     const dialog = page.locator('[role="dialog"]')
     const email = dialog.locator('input[name="email"]')

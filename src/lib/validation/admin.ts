@@ -206,3 +206,9 @@ export const toggleUserSchema = z.object({
 export type CreateUserInput = z.infer<typeof createUserSchema>
 export type UpdateUserInput = z.infer<typeof updateUserSchema>
 export type CompanyInput = z.infer<typeof companySchema>
+
+/** Which fields a request must carry, as the settings screen sends them. */
+export const requiredFieldsSchema = z.object({
+  companyId: z.string().min(1),
+  fields: z.array(z.string().min(1)).default([]),
+})

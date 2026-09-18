@@ -60,6 +60,8 @@ export type PipelineViewProps = {
   members: { id: string; name: string; displayCode: string | null; avatarColor: string }[]
   customers: CustomerOption[]
   automationRules: AutomationRule[]
+  /** Which fields this company insists on, decided in admin settings. */
+  requiredFields: string[]
   initialFilters: EnquiryFilters
   initialPage: PipelinePage
 }
@@ -71,6 +73,7 @@ export function PipelineView({
   members,
   customers: initialCustomers,
   automationRules,
+  requiredFields,
   initialFilters,
   initialPage,
 }: PipelineViewProps) {
@@ -480,6 +483,7 @@ export function PipelineView({
           customers: filterOptions.customers,
         }}
         automationRules={automationRules}
+        requiredFields={requiredFields}
         defaultSalesResponsibleId={viewer.id}
         onSubmit={handleSubmit}
         onCustomerCreated={refreshCustomers}

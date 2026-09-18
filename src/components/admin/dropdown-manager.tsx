@@ -17,6 +17,7 @@ import type { DropdownTypeKey } from '@prisma/client'
 
 import { AdminPageHeader, AdminShell } from '@/components/admin/admin-page-header'
 import { AutomationRules } from '@/components/admin/automation-rules'
+import { RequiredFields } from '@/components/admin/required-fields'
 import { ColorPicker } from '@/components/admin/color-picker'
 import { Badge, ValueBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -72,12 +73,15 @@ export function DropdownManager({
   catalogue,
   usage,
   automationRules,
+  requiredFields,
 }: {
   companyId: string
   companyName: string
   catalogue: DropdownCatalogue
   usage: Record<string, number>
   automationRules: AutomationRule[]
+  /** Which fields a request must carry, as configured for this company. */
+  requiredFields: string[]
 }) {
   const router = useRouter()
   const [activeType, setActiveType] = React.useState<DropdownTypeKey>('STATUS')
@@ -112,9 +116,11 @@ export function DropdownManager({
               </TabsTrigger>
             ))}
             <TabsTrigger value="AUTOMATION">Automation</TabsTrigger>
+            <TabsTrigger value="REQUIRED">Mandatory fields</TabsTrigger>
           </TabsList>
 
-          {activeType !== ('AUTOMATION' as DropdownTypeKey) ? (
+          {activeType !== ('AUTOMATION' as DropdownTypeKey) &&
+          activeType !== ('REQUIRED' as DropdownTypeKey) ? (
             <Button
               variant="primary"
               onClick={() => setDialogState({ open: true, typeKey: activeType, value: null })}
@@ -146,6 +152,10 @@ export function DropdownManager({
             catalogue={catalogue}
             onChanged={() => router.refresh()}
           />
+        </TabsContent>
+
+        <TabsContent value="REQUIRED" className="min-h-0 flex-1">
+          <RequiredFields companyId={companyId} required={requiredFields} />
         </TabsContent>
       </Tabs>
 

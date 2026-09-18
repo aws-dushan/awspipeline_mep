@@ -7,10 +7,16 @@ import { diffRecords, writeAudit } from '@/lib/audit'
 import { requireCompanyPermission } from '@/lib/auth/session'
 import { DROPDOWN_TYPE_LABELS } from '@/lib/database/dropdown-repository'
 import { prisma } from '@/lib/database/prisma'
+import {
+  getRequiredFields,
+  setRequiredFields,
+} from '@/lib/database/field-rule-repository'
+import { fieldLabel, type EnquiryFieldKey } from '@/lib/pipeline/enquiry-fields'
 import { publish } from '@/lib/realtime/event-bus'
 import {
   createDropdownValueSchema,
   reorderDropdownSchema,
+  requiredFieldsSchema,
   toggleDropdownValueSchema,
   updateDropdownValueSchema,
 } from '@/lib/validation/admin'
@@ -266,5 +272,50 @@ export async function reorderDropdownValuesAction(
     revalidatePath(`/c/${company.id}/pipeline`)
     publish({ channel: 'dropdowns', companyId: company.id, actorId: user.id, action: 'dropdown.changed' })
     return { count: ownedIds.size }
+  })
+}
+
+/**
+ * Set which fields a request must carry.
+ *
+ * The whole set is written each time rather than a delta: the screen sends
+ * what it shows, and a decision per field means a later change to a built-in
+ * default cannot silently re-require something an administrator turned off.
+ */
+export async function setRequiredFieldsAction(
+  input: unknown,
+): Promise<ActionResult<{ required: string[] }>> {
+  return runAction('setRequiredFields', async () => {
+    const parsed = requiredFieldsSchema.parse(input)
+    const { user, company } = await requireCompanyPermission(parsed.companyId, 'dropdown:manage')
+
+    const before = await getRequiredFields(company.id)
+    const after = await setRequiredFields(company.id, parsed.fields)
+
+    const added = [...after].filter((field) => !before.has(field))
+    const removed = [...before].filter((field) => !after.has(field))
+
+    if (added.length > 0 || removed.length > 0) {
+      const describe = (fields: EnquiryFieldKey[]) =>
+        fields.map((field) => fieldLabel(field)).join(', ')
+      const parts = [
+        added.length > 0 ? `made ${describe(added)} mandatory` : null,
+        removed.length > 0 ? `made ${describe(removed)} optional` : null,
+      ].filter(Boolean)
+
+      await writeAudit({
+        actorId: user.id,
+        companyId: company.id,
+        action: 'REQUIRED_FIELDS_CHANGED',
+        entity: 'ENQUIRY_FIELD_RULE',
+        entityId: company.id,
+        summary: `${user.name} ${parts.join(' and ')}`,
+        metadata: { required: [...after] },
+      })
+    }
+
+    revalidatePath(`/c/${company.id}/admin/dropdowns`)
+    revalidatePath(`/c/${company.id}/pipeline`)
+    return { required: [...after] }
   })
 }
