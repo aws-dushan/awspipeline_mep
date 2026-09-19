@@ -115,6 +115,22 @@ try {
   console.log('  cron entries touching the edge')
   for (const line of crons.split('\n').filter(Boolean)) console.log(`    ${line}`)
 
+  step('what is running')
+
+  /*
+   * Asked of the container rather than of git or of the deploy log, because
+   * the question this answers is "what is serving right now" and only the
+   * container can say. A deploy that appeared to succeed against a container
+   * that never restarted reports the previous commit here, which is exactly
+   * the case worth catching.
+   */
+  const running = await sh(
+    `docker exec mepplms node -e ` +
+      `"fetch('http://127.0.0.1:3000${BASE_PATH}/api/version').then(r=>r.json())` +
+      `.then(v=>console.log(v.commit+' built '+v.builtAt)).catch(()=>console.log('unreachable'))" 2>/dev/null || true`,
+  )
+  say('commit', running || 'unreachable')
+
   step('our own guard')
 
   say(
