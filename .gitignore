@@ -15,6 +15,10 @@ next-env.d.ts
 
 # Local artefacts
 /ui-shots
+
+# Job number snapshots written by scripts/renumber-job-nos.mjs. They name
+# live rows and are a rollback record, not source.
+/backups
 /prisma/migrations/**/shadow.db
 *.local.md
 

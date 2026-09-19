@@ -17,12 +17,12 @@ export type ColumnFilterKind =
 
 export type PipelineColumnKey =
   | 'jobNo'
+  | 'location'
   | 'enquiryDate'
   | 'salesResponsible'
   | 'customerName'
   | 'projectName'
   | 'status'
-  | 'location'
   | 'material'
   | 'enquiryDetails'
   | 'quoteValue'
@@ -65,6 +65,16 @@ export const PIPELINE_COLUMNS: readonly PipelineColumn[] = [
     minWidth: 112,
     excelWidth: 12,
     pinned: true,
+  },
+  {
+    key: 'location',
+    label: 'Location',
+    exportLabel: 'Location',
+    filter: 'dropdown-multi',
+    dropdownType: 'LOCATION',
+    width: 112,
+    minWidth: 104,
+    excelWidth: 14,
   },
   {
     key: 'enquiryDate',
@@ -113,16 +123,6 @@ export const PIPELINE_COLUMNS: readonly PipelineColumn[] = [
     width: 124,
     minWidth: 120,
     excelWidth: 16,
-  },
-  {
-    key: 'location',
-    label: 'Location',
-    exportLabel: 'Location',
-    filter: 'dropdown-multi',
-    dropdownType: 'LOCATION',
-    width: 112,
-    minWidth: 104,
-    excelWidth: 14,
   },
   {
     key: 'material',
