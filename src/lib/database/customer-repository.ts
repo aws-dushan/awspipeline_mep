@@ -83,12 +83,74 @@ export async function listCustomers(
     })
 }
 
+/** Contact fields a request can teach the customer book. */
+export type ContactGap = 'email' | 'contactPerson' | 'phone'
+
+const clean = (value: string | null | undefined) => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
+}
+
+/**
+ * Fill in contact details the customer record does not have yet.
+ *
+ * Only blanks are written. A request is allowed to name a site contact of its
+ * own - that is what the field is for - so treating every saved request as the
+ * customer's current details would let one job's site foreman overwrite the
+ * office number that everyone else dials.
+ *
+ * Blanks are different: there is nothing to lose and the detail was typed by
+ * someone who had it in front of them. This is the case that kept happening -
+ * a customer added from the picker with just a name, then a request logged
+ * against it minutes later carrying the email, the contact and the phone,
+ * none of which reached the customer area.
+ */
+async function fillContactGaps(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  offered: { email?: string | null; contactPerson?: string | null; phone?: string | null },
+): Promise<ContactGap[]> {
+  const email = clean(offered.email)
+  const contactPerson = clean(offered.contactPerson)
+  const phone = clean(offered.phone)
+  if (!email && !contactPerson && !phone) return []
+
+  const current = await tx.customer.findUnique({
+    where: { id: customerId },
+    select: { email: true, contactPerson: true, phone: true },
+  })
+  if (!current) return []
+
+  const data: Prisma.CustomerUpdateInput = {}
+  const filled: ContactGap[] = []
+  if (email && !clean(current.email)) {
+    data.email = email
+    filled.push('email')
+  }
+  if (contactPerson && !clean(current.contactPerson)) {
+    data.contactPerson = contactPerson
+    filled.push('contactPerson')
+  }
+  if (phone && !clean(current.phone)) {
+    data.phone = phone
+    filled.push('phone')
+  }
+
+  if (filled.length === 0) return []
+  await tx.customer.update({ where: { id: customerId }, data })
+  return filled
+}
+
 /**
  * Resolve the customer for an enquiry.
  *
  * Accepts either an existing customer id or a new name typed into the picker.
  * Matching on a case-insensitive exact name prevents "Arifco" and "arifco "
  * silently becoming two customers.
+ *
+ * An existing customer also learns from the request: any contact detail it is
+ * missing is filled from what was typed, and `filled` names what changed so
+ * the caller can record it.
  */
 export async function resolveCustomer(
   tx: Prisma.TransactionClient,
@@ -100,9 +162,13 @@ export async function resolveCustomer(
     email?: string | null
     contactPerson?: string | null
     phone?: string | null
+    /** Off for the customer admin screen, which edits these fields directly. */
+    fillGaps?: boolean
   },
-): Promise<{ id: string; name: string; created: boolean }> {
+): Promise<{ id: string; name: string; created: boolean; filled: ContactGap[] }> {
   const trimmedName = options.customerName.trim()
+
+  const fillGaps = options.fillGaps ?? true
 
   if (options.customerId) {
     const existing = await tx.customer.findFirst({
@@ -111,7 +177,10 @@ export async function resolveCustomer(
       where: { id: options.customerId, companyId: options.companyId },
       select: { id: true, name: true },
     })
-    if (existing) return { ...existing, created: false }
+    if (existing) {
+      const filled = fillGaps ? await fillContactGaps(tx, existing.id, options) : []
+      return { ...existing, created: false, filled }
+    }
   }
 
   if (!trimmedName) {
@@ -125,20 +194,23 @@ export async function resolveCustomer(
     },
     select: { id: true, name: true },
   })
-  if (byName) return { ...byName, created: false }
+  if (byName) {
+    const filled = fillGaps ? await fillContactGaps(tx, byName.id, options) : []
+    return { ...byName, created: false, filled }
+  }
 
   const created = await tx.customer.create({
     data: {
       companyId: options.companyId,
       name: trimmedName,
-      email: options.email ?? null,
-      contactPerson: options.contactPerson ?? null,
-      phone: options.phone ?? null,
+      email: clean(options.email),
+      contactPerson: clean(options.contactPerson),
+      phone: clean(options.phone),
       createdById: options.actorId,
     },
     select: { id: true, name: true },
   })
-  return { ...created, created: true }
+  return { ...created, created: true, filled: [] }
 }
 
 export async function getCustomerById(companyId: string, customerId: string) {

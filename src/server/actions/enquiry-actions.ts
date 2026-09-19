@@ -10,7 +10,7 @@ import {
   requireCompanyPermission,
 } from '@/lib/auth/session'
 import { enforceAutomationRules } from '@/lib/database/automation-repository'
-import { resolveCustomer } from '@/lib/database/customer-repository'
+import { resolveCustomer, type ContactGap } from '@/lib/database/customer-repository'
 import {
   assertDropdownSelectionList,
   assertDropdownSelections,
@@ -142,6 +142,19 @@ async function assertCompanyMember(companyId: string, userId: string | null) {
   }
 }
 
+/** "the phone number", "the contact and the phone" - for the audit line. */
+const GAP_LABELS: Record<ContactGap, string> = {
+  email: 'the email',
+  contactPerson: 'the contact',
+  phone: 'the phone number',
+}
+
+function describeFilled(filled: ContactGap[]): string {
+  const parts = filled.map((gap) => GAP_LABELS[gap])
+  if (parts.length <= 1) return parts[0] ?? ''
+  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
 export async function createEnquiryAction(
   input: unknown,
 ): Promise<ActionResult<{ id: string; jobNo: string; serialNo: number }>> {
@@ -196,6 +209,7 @@ export async function createEnquiryAction(
         customerName: data.customerName,
         actorId: user.id,
         email: data.email,
+        contactPerson: data.contactPerson,
         phone: data.phoneNumber,
       })
 
@@ -234,6 +248,19 @@ export async function createEnquiryAction(
           },
           tx,
         )
+      } else if (customer.filled.length > 0) {
+        await writeAudit(
+          {
+            actorId: user.id,
+            companyId: company.id,
+            action: 'CUSTOMER_UPDATED',
+            entity: 'CUSTOMER',
+            entityId: customer.id,
+            summary: `Job ${enquiry.jobNo} filled in ${describeFilled(customer.filled)} for ${customer.name}`,
+            metadata: { source: 'enquiry-form', jobNo: enquiry.jobNo, filled: customer.filled },
+          },
+          tx,
+        )
       }
 
       await writeAudit(
@@ -250,7 +277,11 @@ export async function createEnquiryAction(
         tx,
       )
 
-      return { ...enquiry, customerCreated: customer.created }
+      return {
+        ...enquiry,
+        customerCreated: customer.created,
+        customerFilled: customer.filled.length > 0,
+      }
     })
 
     revalidatePath(pipelinePath(company.id))
@@ -260,12 +291,12 @@ export async function createEnquiryAction(
       action: 'enquiry.created',
       entityId: created.id,
     })
-    if (created.customerCreated) {
+    if (created.customerCreated || created.customerFilled) {
       publish({
         channel: 'customers',
         companyId: company.id,
         actorId: user.id,
-        action: 'customer.created',
+        action: created.customerCreated ? 'customer.created' : 'customer.updated',
       })
     }
     return { id: created.id, jobNo: created.jobNo, serialNo: created.serialNo }
@@ -289,6 +320,7 @@ export async function createCustomerAction(
         email: parsed.email,
         contactPerson: parsed.contactPerson,
         phone: parsed.phone,
+        fillGaps: false,
       })
 
       if (!customer.created) {
@@ -698,6 +730,25 @@ export async function updateEnquiryAction(
         )
       }
     })
+
+    if (resolvedCustomer.filled.length > 0) {
+      await writeAudit({
+        actorId: user.id,
+        companyId: company.id,
+        action: 'CUSTOMER_UPDATED',
+        entity: 'CUSTOMER',
+        entityId: resolvedCustomer.id,
+        summary: `Job ${existing.jobNo} filled in ${describeFilled(resolvedCustomer.filled)} for ${resolvedCustomer.name}`,
+        metadata: { source: 'enquiry-form', jobNo: existing.jobNo, filled: resolvedCustomer.filled },
+      })
+      publish({
+        channel: 'customers',
+        companyId: company.id,
+        actorId: user.id,
+        action: 'customer.updated',
+        entityId: resolvedCustomer.id,
+      })
+    }
 
     revalidatePath(pipelinePath(company.id))
     publishPipelineChange({
