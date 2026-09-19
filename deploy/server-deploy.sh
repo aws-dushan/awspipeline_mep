@@ -86,9 +86,13 @@ step "install edge route"
 # HTML whose every asset 404s, which is worse than a clean 404. Matched on the
 # upstream rather than a remembered filename, so it keeps working however many
 # times the prefix changes and touches no other application's config.
-grep -l 'mepplms:3000' /opt/aws/edge/apps/*.conf 2>/dev/null \
+# `|| true` because finding nothing is the normal case and grep says so with
+# exit 1. Under `set -o pipefail` that ends the deploy - which it did, on the
+# first run of this script, after the image had already been built and the
+# container restarted.
+{ grep -l 'mepplms:3000' /opt/aws/edge/apps/*.conf 2>/dev/null \
   | grep -vx "$EDGE_CONF" \
-  | xargs -r rm -f --
+  | xargs -r rm -f --; } || true
 cp -f "$SRC/deploy/awsmepplt.conf" "$EDGE_CONF"
 chmod 644 "$EDGE_CONF"
 
