@@ -1,0 +1,53 @@
+# Pushing to main deploys the Pipeline Tracker.
+#
+# AWS-App has no inbound SSH, so nothing on the internet can reach in to
+# deploy it. The runner is therefore ON the server: it checks out the commit
+# locally and runs the same script a manual deploy runs, which means a push
+# from any machine updates the site without that machine holding a single
+# credential.
+#
+# It runs as `admin-app`, the account that owns /opt/aws and holds the crontab
+# the route guard runs from. A runner under any other account would check out
+# the code fine and then fail at the first write.
+#
+# The runtime environment - database password, session secret - is NOT here
+# and is not a repository secret. It lives at /opt/aws/mepplms/.env on the
+# server, written once by `npm run deploy` from a workstation, and persists.
+# So this workflow needs no secrets at all, and a GitHub account compromise
+# does not hand anybody the database.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys queue; they never cancel each other. Cancelling one halfway through
+# would leave a half-built image or a container mid-restart, and the runner is
+# a single machine anyway - two deploys at once would be two docker builds
+# fighting for the same eight cores.
+concurrency:
+  group: deploy-mepplms
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # The extra label matters. This runner is registered to this repository
+    # alone, but naming it explicitly means a job cannot silently land on a
+    # runner meant for something else if more are ever added to this host.
+    runs-on: [self-hosted, linux, x64, mepplms]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        run: bash deploy/server-deploy.sh
+
+      # Said plainly because the server cannot check it: the public address
+      # resolves to the external IP and does not route back in from here. The
+      # deploy above proved the app and the edge; the public path is proved by
+      # whoever pushed, or by `npm run edge:check`.
+      - name: What this did and did not prove
+        run: |
+          echo "Verified from the server: the app answers at its prefix and the edge routes to it."
+          echo "Not verified here: https://ralsnahashho.dyndns.org:1000/awsmepplt - no route back in from this host."

@@ -23,31 +23,67 @@ run. Joining the same network from outside reaches the same place.
 
 ## Releasing
 
+**A push to `main` deploys.** The Deploy workflow runs on a self-hosted runner
+on AWS-App, checks the commit out there and runs `deploy/server-deploy.sh`.
+
+AWS-App accepts no inbound SSH, so a hosted runner could build an image but
+could never install it. The runner has to be on the machine, reaching out to
+github.com rather than being reached. It runs as `admin-app`, the account that
+owns `/opt/aws` and holds the crontab the route guard runs from; a runner
+under any other account checks the code out fine and then fails at the first
+write.
+
+**The workflow holds no secrets.** The database password and the session
+secret live in `/opt/aws/mepplms/.env` on the server, written once by the
+manual path and persisting across every later deploy. Nothing in GitHub can
+read them.
+
     npm run release
 
-Pushes the current branch to GitHub **and then** updates the portal, so the
-repository and the running system never disagree. It refuses to run with a
-dirty working tree, because the image is built from the working tree and
-deploying dirty would put code on the server that exists in no commit. It
-finishes by driving the deployed site in a browser; `-- --no-verify` skips
-that.
-
-To deploy without pushing:
+Pushes, then waits for the live site to report the pushed commit at
+`/api/version`, and fails if it never does. A green workflow is not the same
+claim: this is the one that says the running system is this code.
 
     npm run deploy
 
-That packs the working tree, uploads it, writes the compose file and the
-runtime environment, builds the image on the server, restarts the container,
-installs the nginx location and reloads the edge — then waits for the login
-page to answer 200. It is safe to run repeatedly, and it touches nothing
-outside `/opt/aws/mepplms` and that one edge config file.
-
-`--no-build` skips the image build, for when only the compose file or the
-nginx config changed.
+Deploys directly over ssh without CI — for a server the runner has never run
+on, for trying something before committing it, or for when GitHub is down. It
+packs the working tree, uploads it, writes the runtime environment, and then
+runs the same `deploy/server-deploy.sh` that CI runs, so the two paths cannot
+deploy differently. `--no-build` skips the image build.
 
 SSH credentials come from `.deploy.env`; the database password and the other
 runtime values come from `.env`. Both are git-ignored and neither is ever
 printed or committed.
+
+### Which commit is live
+
+    curl -k https://ralsnahashho.dyndns.org:1000/awsmepplt/api/version
+
+Public, needs no session, touches no database, and reports the commit compiled
+into the running image. The deploy checks it too, and fails if the container
+came back still serving the previous build.
+
+### Installing the runner
+
+Once per server, and it needs a person:
+
+    sudo bash deploy/install-runner.sh <registration-token>
+
+The token comes from the repository page — Settings → Actions → Runners → New
+self-hosted runner — and expires in an hour. It can enrol a runner and nothing
+else.
+
+### If the route disappears
+
+    npm run edge:check     # what the edge is serving, and what has been deleting it
+    npm run edge:fix       # reinstall the route and reload
+
+The edge's route directory is reconciled by the platform's `sync-infra.sh`
+against its own infrastructure image. This application is not in that image,
+so its route used to be deleted as foreign; `deploy/route-guard.sh`, installed
+by every deploy, puts it back within about twenty seconds. The platform has
+since narrowed its delete rule, and the guard stays as a safety net.
 
 ## The base path is compiled in
 

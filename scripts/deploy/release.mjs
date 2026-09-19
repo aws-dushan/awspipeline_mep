@@ -1,17 +1,21 @@
 /**
- * Ship: push the branch to GitHub, then update the deployed portal.
+ * Ship: push, then wait for the portal to be running what was pushed.
  *
  *   npm run release
  *   npm run release -- --no-verify   # skip the post-deploy browser check
  *
- * The two halves belong together. A push that leaves the running system on
- * older code means the repository and the portal disagree, and the next person
- * to look at either one is reading a lie. So the deploy runs at the end of
- * every push, and a failure in it is a failure of the release.
+ * The push IS the deploy now - the Deploy workflow runs on the self-hosted
+ * runner on AWS-App - so this no longer deploys anything itself. What it adds
+ * is the part a green workflow does not give you: it polls /api/version until
+ * the live site reports this very commit, and fails if it never does.
+ *
+ * That distinction has mattered in this project more than once. A push that
+ * returns in a second says nothing about the running system, and "it is
+ * pushed" is not "it is live".
  *
  * Deliberately refuses to run with uncommitted changes: the image is built
- * from the working tree, so deploying dirty would put code on the server that
- * exists in no commit.
+ * from the commit, so a dirty tree means shipping something that exists on no
+ * branch and cannot be looked up later.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { request } from 'node:https'
@@ -32,6 +36,39 @@ const PUBLIC_URL = 'https://ralsnahashho.dyndns.org:1000/awsmepplt'
  * The certificate is not validated: it is the edge's, this is a reachability
  * check, and a certificate error would say nothing about the routing.
  */
+/**
+ * The commit the live site reports it is running.
+ *
+ * Served by /api/version, compiled into the image at build time. This is what
+ * turns "it is pushed" into "it is live" - the one question asked after every
+ * deploy, and one that a green workflow does not actually answer.
+ */
+function deployedSha() {
+  return new Promise((resolve) => {
+    const req = request(
+      `${PUBLIC_URL}/api/version`,
+      { rejectUnauthorized: false, timeout: 20000 },
+      (res) => {
+        let body = ''
+        res.on('data', (chunk) => (body += chunk))
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body).commit ?? null)
+          } catch {
+            resolve(null)
+          }
+        })
+      },
+    )
+    req.on('timeout', () => {
+      req.destroy()
+      resolve(null)
+    })
+    req.on('error', () => resolve(null))
+    req.end()
+  })
+}
+
 function publicStatus(url) {
   return new Promise((resolve) => {
     const req = request(url, { rejectUnauthorized: false, timeout: 20000 }, (res) => {
@@ -73,7 +110,50 @@ const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
 console.log(`Releasing ${branch} @ ${git('rev-parse', '--short', 'HEAD')}`)
 
 run('push to GitHub', 'git', ['push', 'origin', branch])
-run('deploy to the portal', process.execPath, ['scripts/deploy/push.mjs'])
+
+/*
+ * The push is the deploy: the Deploy workflow runs on the self-hosted runner
+ * on AWS-App and deploys the commit that was just pushed.
+ *
+ * So this no longer deploys itself. Doing both would put two docker builds on
+ * the same eight cores, racing to restart the same container - and whichever
+ * finished second would win, which is not always the newer one.
+ *
+ * `npm run deploy` still deploys directly, for a server CI cannot reach or
+ * has never run on.
+ */
+console.log('\n=== deploy')
+console.log('Pushed. The Deploy workflow on AWS-App builds and installs this commit.')
+console.log('Watch it:  https://github.com/aws-dushan/awspipeline_mep/actions')
+
+/*
+ * Waited for rather than assumed. A push that returns in a second says
+ * nothing about whether the site is now running this commit, and "it is
+ * pushed" has been mistaken for "it is live" often enough in this project to
+ * be worth the wait here.
+ */
+const head = git('rev-parse', 'HEAD')
+const deadline = Date.now() + 20 * 60 * 1000
+let live = await deployedSha()
+
+if (live !== head) {
+  process.stdout.write('  building')
+  while (Date.now() < deadline && live !== head) {
+    await new Promise((r) => setTimeout(r, 15000))
+    process.stdout.write('.')
+    live = await deployedSha()
+  }
+  process.stdout.write('\n')
+}
+
+if (live !== head) {
+  console.error(`\nStill serving ${live ?? 'an unknown commit'} after 20 minutes.`)
+  console.error('The workflow may have failed, or no runner picked the job up:')
+  console.error('  https://github.com/aws-dushan/awspipeline_mep/actions')
+  console.error('To deploy without CI:  npm run deploy')
+  process.exit(1)
+}
+console.log(`  live: ${live.slice(0, 7)}`)
 
 /*
  * The browser pass needs an account on the live system, and a workstation
@@ -88,7 +168,7 @@ console.log('\n=== reach the public address')
 const status = await publicStatus(`${PUBLIC_URL}/login`)
 console.log(`  ${PUBLIC_URL}/login -> ${status}`)
 if (status !== '200') {
-  console.error('\nThe deploy succeeded but the public address does not serve it.')
+  console.error('\nThe commit is deployed but the sign-in page does not answer.')
   console.error('Diagnose the edge:  npm run edge:check')
   process.exit(1)
 }

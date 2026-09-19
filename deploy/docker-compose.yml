@@ -13,6 +13,11 @@ services:
       args:
         # Must match the nginx `location` in awsmepplt.conf. Compiled in.
         APP_BASE_PATH: /awsmepplt
+        # Reported by /api/version, so a deploy can be checked from outside
+        # rather than believed. Supplied by deploy/server-deploy.sh; "unknown"
+        # if the image is built by hand.
+        APP_COMMIT: ${APP_COMMIT:-unknown}
+        APP_BUILT_AT: ${APP_BUILT_AT:-unknown}
     image: aws-mepplms:latest
     container_name: mepplms
     restart: unless-stopped

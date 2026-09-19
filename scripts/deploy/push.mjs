@@ -3,11 +3,19 @@
  *
  *   node scripts/deploy/push.mjs [--no-build]
  *
- * What it does, in order: packs the working tree, uploads it to
- * /opt/aws/mepplms/src, writes the compose file and the runtime environment,
- * builds the image on the server, starts the container on the shared
- * `aws-app_aws-app` network, installs the nginx location and reloads the
- * edge.
+ * The manual path, for when CI cannot be used - a server that has never been
+ * deployed to, a workstation change to try before committing, or GitHub being
+ * unavailable. The ordinary way to deploy is to push: .github/workflows
+ * deploy.yml runs on the server and does the same thing.
+ *
+ * What it does: packs the working tree, uploads it to /opt/aws/mepplms/src,
+ * writes the runtime environment, then hands over to deploy/server-deploy.sh
+ * on the server - the same script CI runs, so the two paths cannot deploy
+ * differently.
+ *
+ * Writing the runtime environment is the one thing only this path does, and
+ * the reason CI needs no secrets: the database password and session secret
+ * are written here once and persist on the server across every later deploy.
  *
  * It is safe to run repeatedly. Nothing outside /opt/aws/mepplms, the one
  * file /opt/aws/edge/apps/awsmepplt.conf and one line of this account's
@@ -24,10 +32,6 @@ import { mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { loadEnv, connectApp, run } from './remote.mjs'
 
 const REMOTE_DIR = '/opt/aws/mepplms'
-const EDGE_CONF = '/opt/aws/edge/apps/awsmepplt.conf'
-const EDGE_CONTAINER = 'aws-edge-nginx-1'
-/** The container nginx proxies to. Its name is internal and does not change. */
-const CONTAINER = 'mepplms'
 const BASE_PATH = '/awsmepplt'
 const PUBLIC_URL = `https://ralsnahashho.dyndns.org:1000${BASE_PATH}`
 
@@ -125,9 +129,6 @@ try {
   unlinkSync(archive)
   await run(app, `tar -xzf /tmp/mepplms.tgz -C ${REMOTE_DIR}/src && rm -f /tmp/mepplms.tgz`)
 
-  step('write compose file')
-  await putText(app, readFileSync('deploy/docker-compose.yml', 'utf8'), `${REMOTE_DIR}/docker-compose.yml`)
-
   step('write runtime environment')
   /*
    * AUTH_SECRET is generated once and then reused. Regenerating it on every
@@ -165,98 +166,28 @@ try {
   ].join('\n')
   await putText(app, runtimeEnv, `${REMOTE_DIR}/.env`, '0600')
 
-  if (!skipBuild) {
-    step('build image (this takes a few minutes)')
-    const built = await run(app, `cd ${REMOTE_DIR} && docker compose build 2>&1 | tail -30`)
-    if (built.code !== 0) throw new Error('image build failed')
-  }
-
-  step('start container')
-  const up = await run(app, `cd ${REMOTE_DIR} && docker compose up -d`)
-  if (up.code !== 0) throw new Error('docker compose up failed')
-
-  step('install edge configuration')
   /*
-   * Retire any earlier prefix first.
+   * From here on, the deploy is the same script the CI workflow runs.
    *
-   * The path is compiled into the image, so after a rename the old location
-   * still proxies here and still answers - with HTML whose every asset 404s,
-   * which is worse than a clean 404. Matching on the upstream rather than on a
-   * remembered filename means this keeps working however many times the prefix
-   * changes, and touches no other application's config.
+   * There were nearly two implementations of this - one here and one in the
+   * workflow - and they would have drifted within a day: this one installs
+   * the route guard, and a second one written separately is exactly where
+   * that gets forgotten. Which path you deployed by would then decide whether
+   * the site survived the next infrastructure change. One script on the
+   * server, called from both, removes that class of bug.
    */
-  await run(
+  step('deploy on the server')
+  /*
+   * The commit travels as an environment variable because the uploaded tree
+   * has no .git in it - the archive excludes it, and should: the server has
+   * no use for the history and every megabyte of it crosses the link.
+   */
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  const deployed = await run(
     app,
-    `grep -l '${CONTAINER}:3000' /opt/aws/edge/apps/*.conf 2>/dev/null ` +
-      `| grep -vx '${EDGE_CONF}' | xargs -r rm -f -- ` +
-      `&& echo "retired the previous prefix" || true`,
+    `APP_COMMIT=${commit} bash ${REMOTE_DIR}/src/deploy/server-deploy.sh${skipBuild ? ' --no-build' : ''} 2>&1`,
   )
-  await putText(app, readFileSync('deploy/awsmepplt.conf', 'utf8'), EDGE_CONF)
-  const test = await run(app, `docker exec ${EDGE_CONTAINER} nginx -t`)
-  if (test.code !== 0) throw new Error('nginx rejected the configuration; it was NOT reloaded')
-  await run(app, `docker exec ${EDGE_CONTAINER} nginx -s reload`)
-
-  step('install the route guard')
-  /*
-   * The route above does not stay installed on its own.
-   *
-   * `sync-infra.sh` runs from cron on this host and reconciles
-   * /opt/aws/edge/apps against a published infrastructure image, deleting any
-   * route that image does not carry. This application is deployed from its
-   * own repository and is deliberately not in that image, so its route was
-   * being removed minutes after each deploy - the site answered a bare nginx
-   * 404 while everything else on the port kept serving.
-   *
-   * Putting the route in the infrastructure repository would also fix it, and
-   * was declined on purpose: a deploy of this project should not require a
-   * commit to another one. So the deploy installs a guard that notices the
-   * route going missing and puts it back.
-   */
-  await putText(app, readFileSync('deploy/awsmepplt.conf', 'utf8'), `${REMOTE_DIR}/awsmepplt.conf`)
-  await putText(app, readFileSync('deploy/route-guard.sh', 'utf8'), `${REMOTE_DIR}/route-guard.sh`, '0755')
-
-  /*
-   * Added to the crontab only if it is not already there, and by rewriting
-   * the whole table through a filter rather than appending blindly - a deploy
-   * that runs fifty times must leave one line, not fifty. The existing
-   * entries are preserved untouched; this host's cron also drives the
-   * infrastructure sync and the platform's own deploy.
-   */
-  const cron = await run(
-    app,
-    `( crontab -l 2>/dev/null | grep -v 'mepplms/route-guard.sh'; ` +
-      `echo '* * * * * ${REMOTE_DIR}/route-guard.sh >/dev/null 2>&1' ) | crontab - ` +
-      `&& crontab -l | grep -c 'route-guard.sh'`,
-    { silent: true },
-  )
-  if (cron.stdout.trim() !== '1') throw new Error('could not install the route guard in cron')
-  console.log('  guard installed; checks every 20s and restores the route if it is removed')
-
-  step('verify')
-  /*
-   * Checked from the server's own vantage point, which is not the public one.
-   * The server cannot reach its own public address - the name resolves to the
-   * external IP and nothing routes it back in - so curling PUBLIC_URL here
-   * hangs until curl gives up, thirty times over. The browser check at the end
-   * of `npm run release` is what covers the public path; this proves the two
-   * hops the server can actually see.
-   */
-  const verify =
-    // 1. The app answers at the prefix, inside its own container.
-    `echo "app:  $(docker exec mepplms node -e ` +
-    `"fetch('http://127.0.0.1:3000${BASE_PATH}/login').then(r=>console.log(r.status)).catch(e=>console.log(e.code||'unreachable'))")"; ` +
-    // 2. The edge routes that prefix to it. The published address comes from
-    //    docker rather than a literal, so no internal addressing is written
-    //    down here, and the Host header is what the certificate expects.
-    `edge=$(docker port ${EDGE_CONTAINER} 1000 | head -1); ` +
-    `echo "edge: $(curl -sk -m 10 -o /dev/null -w '%{http_code}' ` +
-    `-H 'Host: ${new URL(PUBLIC_URL).hostname}' "https://$edge${BASE_PATH}/login")"; ` +
-    `echo "container: $(docker inspect -f '{{.State.Status}} {{.State.Health.Status}}' mepplms)"`
-
-  const checked = await run(app, verify)
-  if (!/edge: 200/.test(checked.stdout)) {
-    throw new Error('the edge did not serve the application after the reload')
-  }
+  if (deployed.code !== 0) throw new Error('the deploy script failed on the server')
 
   console.log(`\nDeployed: ${PUBLIC_URL}/login`)
 } finally {

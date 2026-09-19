@@ -56,6 +56,17 @@ ENV PORT=3000
 # across the Docker network. The container publishes nothing to the host.
 ENV HOSTNAME=0.0.0.0
 
+# The commit this image was built from, reported by /api/version.
+#
+# Passed at BUILD time rather than set when the container starts, so it cannot
+# be changed after the fact and always describes the code actually inside the
+# image. It answers the question asked after every deploy - is the site
+# running what I just pushed - without anyone having to log in to look.
+ARG APP_COMMIT=unknown
+ENV APP_COMMIT=$APP_COMMIT
+ARG APP_BUILT_AT=unknown
+ENV APP_BUILT_AT=$APP_BUILT_AT
+
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 COPY --from=builder /app/public ./public

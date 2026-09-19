@@ -22,7 +22,21 @@ function appPath(pathname: string): string {
   return pathname.slice(BASE_PATH.length) || '/'
 }
 
+/** Pages for signed-out visitors, which a signed-in one is sent away from. */
 const PUBLIC_PATHS = ['/login']
+
+/**
+ * Reachable by anyone, signed in or not, and answered as-is.
+ *
+ * Kept separate from PUBLIC_PATHS because that list means "for signed-out
+ * visitors" and redirects a signed-in one to /select-company. Doing that to
+ * `/api/version` would hand a redirect to something asking for JSON.
+ *
+ * `/api/version` is here because the deploy has to be able to ask what it
+ * just installed, and a check that needs credentials is a check that ends up
+ * skipped. It returns the commit hash and nothing else.
+ */
+const OPEN_PATHS = ['/api/version']
 
 /**
  * First line of defence only. Middleware runs on the edge and can see the JWT
@@ -48,6 +62,10 @@ export default auth((req) => {
     // which applies the base path itself. Prefixing here would double it.
     if (callbackUrl) url.searchParams.set('callbackUrl', callbackUrl)
     return NextResponse.redirect(url)
+  }
+
+  if (OPEN_PATHS.some((p) => path === p || path.startsWith(`${p}/`))) {
+    return NextResponse.next()
   }
 
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`))
