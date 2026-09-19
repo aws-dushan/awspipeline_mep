@@ -14,8 +14,38 @@
  * exists in no commit.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
+import { request } from 'node:https'
 
 const PUBLIC_URL = 'https://ralsnahashho.dyndns.org:1000/awsmepplt'
+
+/**
+ * Fetch the public sign-in page and report its status.
+ *
+ * The deploy verifies the app inside its container and the edge on its
+ * published port, because the server cannot reach its own public address -
+ * the name resolves to the external IP and nothing routes it back in. Neither
+ * check can see the public path, and the public path is what has broken
+ * before: the edge kept serving the other sites and answered this prefix with
+ * its own default 404, meaning the location block had gone. A workstation can
+ * reach the public address, so it is the one place this is worth asking from.
+ *
+ * The certificate is not validated: it is the edge's, this is a reachability
+ * check, and a certificate error would say nothing about the routing.
+ */
+function publicStatus(url) {
+  return new Promise((resolve) => {
+    const req = request(url, { rejectUnauthorized: false, timeout: 20000 }, (res) => {
+      res.resume()
+      resolve(String(res.statusCode))
+    })
+    req.on('timeout', () => {
+      req.destroy()
+      resolve('timed out')
+    })
+    req.on('error', (e) => resolve(e.code ?? 'unreachable'))
+    req.end()
+  })
+}
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim()
 
@@ -54,6 +84,15 @@ run('deploy to the portal', process.execPath, ['scripts/deploy/push.mjs'])
  * The deploy itself is already verified without credentials: the app answers
  * at its prefix inside the container, and the edge routes to it.
  */
+console.log('\n=== reach the public address')
+const status = await publicStatus(`${PUBLIC_URL}/login`)
+console.log(`  ${PUBLIC_URL}/login -> ${status}`)
+if (status !== '200') {
+  console.error('\nThe deploy succeeded but the public address does not serve it.')
+  console.error('Diagnose the edge:  npm run edge:check')
+  process.exit(1)
+}
+
 const haveCredentials = Boolean(process.env.UI_PASS)
 
 if (!process.argv.includes('--no-verify') && !haveCredentials) {

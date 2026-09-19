@@ -8,6 +8,8 @@
     "start": "next start",
     "release": "node scripts/deploy/release.mjs",
     "deploy": "node scripts/deploy/push.mjs",
+    "edge:check": "node scripts/deploy/edge-doctor.mjs",
+    "edge:fix": "node scripts/deploy/edge-doctor.mjs --repair",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",

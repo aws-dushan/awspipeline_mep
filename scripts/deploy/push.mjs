@@ -9,9 +9,10 @@
  * `aws-app_aws-app` network, installs the nginx location and reloads the
  * edge.
  *
- * It is safe to run repeatedly. Nothing outside /opt/aws/mepplms and the one
- * file /opt/aws/edge/apps/awsmepplt.conf is touched - in particular
- * docker-compose.app.yml, which the infrastructure sync owns, is left alone.
+ * It is safe to run repeatedly. Nothing outside /opt/aws/mepplms, the one
+ * file /opt/aws/edge/apps/awsmepplt.conf and one line of this account's
+ * crontab is touched - in particular docker-compose.app.yml and the rest of
+ * the edge, which the infrastructure sync owns, are left alone.
  *
  * Secrets are read from the local `.env` and `.deploy.env`, both git-ignored,
  * and are never printed.
@@ -194,6 +195,42 @@ try {
   const test = await run(app, `docker exec ${EDGE_CONTAINER} nginx -t`)
   if (test.code !== 0) throw new Error('nginx rejected the configuration; it was NOT reloaded')
   await run(app, `docker exec ${EDGE_CONTAINER} nginx -s reload`)
+
+  step('install the route guard')
+  /*
+   * The route above does not stay installed on its own.
+   *
+   * `sync-infra.sh` runs from cron on this host and reconciles
+   * /opt/aws/edge/apps against a published infrastructure image, deleting any
+   * route that image does not carry. This application is deployed from its
+   * own repository and is deliberately not in that image, so its route was
+   * being removed minutes after each deploy - the site answered a bare nginx
+   * 404 while everything else on the port kept serving.
+   *
+   * Putting the route in the infrastructure repository would also fix it, and
+   * was declined on purpose: a deploy of this project should not require a
+   * commit to another one. So the deploy installs a guard that notices the
+   * route going missing and puts it back.
+   */
+  await putText(app, readFileSync('deploy/awsmepplt.conf', 'utf8'), `${REMOTE_DIR}/awsmepplt.conf`)
+  await putText(app, readFileSync('deploy/route-guard.sh', 'utf8'), `${REMOTE_DIR}/route-guard.sh`, '0755')
+
+  /*
+   * Added to the crontab only if it is not already there, and by rewriting
+   * the whole table through a filter rather than appending blindly - a deploy
+   * that runs fifty times must leave one line, not fifty. The existing
+   * entries are preserved untouched; this host's cron also drives the
+   * infrastructure sync and the platform's own deploy.
+   */
+  const cron = await run(
+    app,
+    `( crontab -l 2>/dev/null | grep -v 'mepplms/route-guard.sh'; ` +
+      `echo '* * * * * ${REMOTE_DIR}/route-guard.sh >/dev/null 2>&1' ) | crontab - ` +
+      `&& crontab -l | grep -c 'route-guard.sh'`,
+    { silent: true },
+  )
+  if (cron.stdout.trim() !== '1') throw new Error('could not install the route guard in cron')
+  console.log('  guard installed; checks every 20s and restores the route if it is removed')
 
   step('verify')
   /*
