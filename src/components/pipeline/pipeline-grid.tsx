@@ -13,6 +13,8 @@ import {
   ArrowUp,
   Check,
   Clock3,
+  FilePlus2,
+  FileText,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -114,6 +116,7 @@ export type PipelineGridProps = {
     values: EnquiryFormInput,
   ) => Promise<{ ok: boolean; fieldErrors?: Record<string, string> }>
   onRequestDelete: (row: PipelineRow) => void
+  onOpenQuotation: (row: PipelineRow) => void
   onFilterChange: (patch: Partial<EnquiryFilters>) => void
   onClearColumn: (column: PipelineColumnKey) => void
   onSort: (key: SortableKey) => void
@@ -133,6 +136,7 @@ export function PipelineGrid({
   onEdit,
   onInlineSave,
   onRequestDelete,
+  onOpenQuotation,
   onFilterChange,
   onClearColumn,
   onSort,
@@ -490,6 +494,7 @@ export function PipelineGrid({
                         canEdit={canEdit(record)}
                         canRequestDelete={canRequestDelete}
                         onEdit={() => onEdit(record)}
+                        onOpenQuotation={() => onOpenQuotation(record)}
                         onRequestDelete={() => onRequestDelete(record)}
                       />
                     )}
@@ -798,12 +803,14 @@ function RowActions({
   canEdit,
   canRequestDelete,
   onEdit,
+  onOpenQuotation,
   onRequestDelete,
 }: {
   row: PipelineRow
   canEdit: boolean
   canRequestDelete: boolean
   onEdit: () => void
+  onOpenQuotation: () => void
   onRequestDelete: () => void
 }) {
   return (
@@ -829,6 +836,25 @@ function RowActions({
           <Pencil />
           {canEdit ? 'Edit request' : 'View only'}
         </DropdownMenuItem>
+
+        {/*
+          A request has at most one quotation, with its versions inside it. With
+          none yet, only someone who may edit the request can start one.
+        */}
+        {row.quotation ? (
+          <DropdownMenuItem onSelect={onOpenQuotation}>
+            <FileText />
+            View quotation
+            <span className="ml-auto text-[11px] font-semibold text-ink-400">
+              R{row.quotation.latestRevision}
+            </span>
+          </DropdownMenuItem>
+        ) : canEdit ? (
+          <DropdownMenuItem onSelect={onOpenQuotation}>
+            <FilePlus2 />
+            Create quotation
+          </DropdownMenuItem>
+        ) : null}
 
         {canRequestDelete ? (
           <>

@@ -1,5 +1,6 @@
 import {
   Building2,
+  FileText,
   History,
   LayoutGrid,
   ShieldCheck,
@@ -77,6 +78,13 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: SlidersHorizontal,
         href: '/c/:companyId/admin/dropdowns',
         permission: 'dropdown:manage',
+      },
+      {
+        key: 'quotation-settings',
+        label: 'Quotations',
+        icon: FileText,
+        href: '/c/:companyId/admin/quotations',
+        permission: 'quotation:settings',
       },
       {
         key: 'companies',

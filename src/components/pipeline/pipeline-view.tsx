@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { FileX2, Inbox, Plus, RefreshCw } from 'lucide-react'
@@ -78,6 +78,7 @@ export function PipelineView({
   initialPage,
 }: PipelineViewProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const queryClient = useQueryClient()
 
   /**
@@ -448,6 +449,7 @@ export function PipelineView({
           setDrawerOpen(true)
         }}
         onRequestDelete={setDeleteTarget}
+        onOpenQuotation={(row) => router.push(`/c/${company.id}/quotations/${row.id}`)}
         onFilterChange={(patch) => applyFilters(patch)}
         onClearColumn={handleClearColumn}
         onSort={handleSort}

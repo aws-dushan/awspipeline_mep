@@ -69,6 +69,13 @@ const enquirySelect = {
     },
     take: 1,
   },
+  // Enough for the row menu to say "Create quotation" or "View quotation R2".
+  quotation: {
+    select: {
+      referenceNo: true,
+      versions: { select: { revision: true }, orderBy: { revision: 'desc' as const }, take: 1 },
+    },
+  },
 } satisfies Prisma.EnquirySelect
 
 type EnquiryRow = Prisma.EnquiryGetPayload<{ select: typeof enquirySelect }>
@@ -111,6 +118,7 @@ export type PipelineRow = {
     requestedBy: { id: string; name: string }
     supervisor: { id: string; name: string } | null
   } | null
+  quotation: { referenceNo: string; latestRevision: number } | null
 }
 
 export type BadgeValue = {
@@ -165,6 +173,12 @@ function serializeRow(row: EnquiryRow): PipelineRow {
           requestedAt: pending.requestedAt.toISOString(),
           requestedBy: pending.requestedBy,
           supervisor: pending.supervisor,
+        }
+      : null,
+    quotation: row.quotation
+      ? {
+          referenceNo: row.quotation.referenceNo,
+          latestRevision: row.quotation.versions[0]?.revision ?? 0,
         }
       : null,
   }

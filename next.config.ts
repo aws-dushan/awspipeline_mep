@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   // node_modules or a package install.
   output: 'standalone',
   poweredByHeader: false,
-  serverExternalPackages: ['exceljs', 'bcryptjs'],
+  serverExternalPackages: ['exceljs', 'bcryptjs', 'pdfmake'],
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion', 'date-fns'],
   },

@@ -71,6 +71,11 @@ enum AuditAction {
   SUPERVISOR_ASSIGNED
   SUPERVISOR_REMOVED
   DATA_EXPORTED
+  QUOTATION_CREATED
+  QUOTATION_VERSION_CREATED
+  QUOTATION_VERSION_UPDATED
+  QUOTATION_DOWNLOADED
+  QUOTATION_SETTINGS_UPDATED
 }
 
 enum AuditEntity {
@@ -84,6 +89,7 @@ enum AuditEntity {
   DELETE_REQUEST
   SUPERVISOR_ASSIGNMENT
   USER_COMPANY
+  QUOTATION
 }
 
 // -----------------------------------------------------------------------------
@@ -110,6 +116,8 @@ model Company {
   auditLogs      AuditLog[]
   deleteRequests DeleteRequest[]
   counter        CompanyCounter?
+  quotations        Quotation[]
+  quotationSettings QuotationSettings?
 
   @@index([isActive])
   @@map("companies")
@@ -169,6 +177,10 @@ model User {
   deleteRequestsMade     DeleteRequest[] @relation("DeleteRequestRequestedBy")
   deleteRequestsAssigned DeleteRequest[] @relation("DeleteRequestSupervisor")
   deleteRequestsDecided  DeleteRequest[] @relation("DeleteRequestDecidedBy")
+
+  quotationsCreated        Quotation[]        @relation("QuotationCreatedBy")
+  quotationVersionsCreated QuotationVersion[] @relation("QuotationVersionCreatedBy")
+  quotationVersionsUpdated QuotationVersion[] @relation("QuotationVersionUpdatedBy")
 
   auditLogs AuditLog[]
   sessions  AuthSession[]
@@ -465,6 +477,7 @@ model Enquiry {
 
   deleteRequests DeleteRequest[]
   auditLogs      AuditLog[]
+  quotation      Quotation?
 
   @@unique([companyId, jobNo])
   @@unique([companyId, serialNo])
@@ -478,6 +491,108 @@ model Enquiry {
   @@index([companyId, customerName])
   @@index([companyId, customerId])
   @@map("enquiries")
+}
+
+// -----------------------------------------------------------------------------
+//  Quotations
+// -----------------------------------------------------------------------------
+
+/// What a company's quotations carry that is not specific to one customer:
+/// the letterhead, the reference numbering and the default terms a new
+/// quotation starts from. No row means the built-in defaults apply.
+model QuotationSettings {
+  companyId String @id
+
+  /// The name printed at the top of the letterhead.
+  letterheadName String
+  address        String
+  contactNumber  String
+  email          String
+  /// Small print at the foot of every page.
+  footerText     String
+
+  /// References read <prefix><number>, e.g. AWS/DXB/1105.
+  referencePrefix String @default("")
+  nextReferenceNo Int    @default(1)
+
+  defaultScope String
+  vatNote      String
+  /// [{ label, text }] - copied into each new quotation, then editable there.
+  defaultTerms Json
+
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_settings")
+}
+
+/// A pipeline request's quotation. One per request; what changes over time is
+/// recorded as versions under it, so R0 stays exactly what the customer was
+/// sent even after R1 exists.
+model Quotation {
+  id          String @id @default(cuid())
+  companyId   String
+  enquiryId   String @unique
+  referenceNo String
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  enquiry   Enquiry            @relation(fields: [enquiryId], references: [id], onDelete: Restrict)
+  createdBy User?              @relation("QuotationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  versions  QuotationVersion[]
+
+  @@unique([companyId, referenceNo])
+  @@index([companyId])
+  @@map("quotations")
+}
+
+/// One revision of a quotation: a complete snapshot of everything printed on
+/// it, so any version can be viewed or downloaded again exactly as it was.
+model QuotationVersion {
+  id          String @id @default(cuid())
+  quotationId String
+  /// 0 for the first issue, printed as R0, R1, ...
+  revision    Int
+
+  quotationDate DateTime
+  validUntil    DateTime?
+
+  salesName  String
+  salesPhone String
+  salesEmail String
+
+  customerName    String
+  attention       String
+  attentionPhone  String
+  customerAddress String
+  customerEmail   String
+  customerRef     String
+  enquiryDate     DateTime?
+
+  /// [{ description, make, qty, unitPrice }]
+  items       Json
+  scopeOfWork String
+  vatNote     String
+  /// [{ label, text }]
+  terms       Json
+  currency    String
+  totalAmount Decimal @db.Decimal(16, 2)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("QuotationVersionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?     @relation("QuotationVersionUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([quotationId, revision])
+  @@map("quotation_versions")
 }
 
 // -----------------------------------------------------------------------------

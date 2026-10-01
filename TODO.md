@@ -101,6 +101,25 @@ Status of the Pipeline / Enquiry Tracking System build.
       not on the form and cannot be edited afterwards - it records when the
       request came in, which is not something a later edit revises
 
+## Quotations
+
+- [x] Row menu: "Create quotation" on a request without one, "View quotation"
+      with the latest revision once it has one
+- [x] One quotation per request, with versions R0, R1, ... under it. "Save as
+      R<n>" keeps the shown version untouched; "Update R<n>" corrects it in place
+- [x] Every version can be opened, viewed and downloaded at any time;
+      downloading does not lock a version
+- [x] The editor is laid out like the issued quotation, so the sheet reads as
+      the document the customer receives
+- [x] PDF in the format of the hand-made Excel quotation: letterhead, peach
+      bars, details grid, item table, scope and total, terms, brand strip
+- [x] Saving the latest version sets the request's Quote Value to its total,
+      recorded in the request's history
+- [x] Reference numbers `<prefix><number>` from a per-company counter; a number
+      already used is skipped. Letterhead, numbering and default terms in
+      Admin → Quotations
+- [x] Created, revised, updated and downloaded are all in the audit trail
+
 ## Live data
 
 - [x] Server-Sent Events channel per company, authorised like any other read

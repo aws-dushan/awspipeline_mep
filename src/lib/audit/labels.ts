@@ -61,6 +61,11 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   SUPERVISOR_ASSIGNED: 'Supervisor assigned',
   SUPERVISOR_REMOVED: 'Supervisor removed',
   DATA_EXPORTED: 'Data exported',
+  QUOTATION_CREATED: 'Quotation created',
+  QUOTATION_VERSION_CREATED: 'Quotation revised',
+  QUOTATION_VERSION_UPDATED: 'Quotation updated',
+  QUOTATION_DOWNLOADED: 'Quotation downloaded',
+  QUOTATION_SETTINGS_UPDATED: 'Quotation settings changed',
 }
 
 /** Colour family per action, used by the audit timeline. */
@@ -94,4 +99,9 @@ export const AUDIT_ACTION_TONE: Record<AuditAction, AuditTone> = {
   SUPERVISOR_ASSIGNED: 'info',
   SUPERVISOR_REMOVED: 'warning',
   DATA_EXPORTED: 'neutral',
+  QUOTATION_CREATED: 'positive',
+  QUOTATION_VERSION_CREATED: 'positive',
+  QUOTATION_VERSION_UPDATED: 'info',
+  QUOTATION_DOWNLOADED: 'neutral',
+  QUOTATION_SETTINGS_UPDATED: 'info',
 }

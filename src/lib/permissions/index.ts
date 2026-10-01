@@ -15,6 +15,10 @@ export const PERMISSIONS = [
   'pipeline:edit:own',
   'pipeline:export',
 
+  // Quotations. Creating and revising follows the request's edit rights
+  // (canEditEnquiry); this is the company-wide letterhead and numbering.
+  'quotation:settings',
+
   // Deletion workflow
   'delete:request',
   'delete:review',
@@ -52,6 +56,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'user:manage',
     'dropdown:view',
     'dropdown:manage',
+    'quotation:settings',
     'audit:view',
     'audit:view:all',
     'enquiry:view:deleted',
@@ -69,6 +74,7 @@ const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     // statuses, locations, materials and the Status/Probability linkage - so
     // they do not have to wait on an administrator to add a value.
     'dropdown:manage',
+    'quotation:settings',
     'user:view',
     'audit:view',
   ],
