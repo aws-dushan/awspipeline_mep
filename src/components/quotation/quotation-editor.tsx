@@ -81,6 +81,8 @@ export type QuotationEditorProps = {
   enquiry: { id: string; jobNo: string; customerName: string; projectName: string | null }
   settings: QuotationSettingsValues
   quotation: QuotationView | null
+  /** The reference a new quotation will be issued under. */
+  referencePreview: string
   selectedVersionId: string | null
   /** The starting sheet when there is no quotation yet. */
   draft: QuotationFormValues | null
@@ -92,6 +94,7 @@ export function QuotationEditor({
   enquiry,
   settings,
   quotation,
+  referencePreview,
   selectedVersionId,
   draft,
   canEdit,
@@ -235,9 +238,15 @@ export function QuotationEditor({
           ? `${label} saved as a new version`
           : `${label} updated`,
       {
-        description: saved.quoteValueUpdated
-          ? `The request's Quote Value is now ${company.currency} ${amountFormat.format(quotationTotal(parsed.data.items))}.`
-          : undefined,
+        description:
+          [
+            saved.quoteValueUpdated
+              ? `Quote Value is now ${company.currency} ${amountFormat.format(quotationTotal(parsed.data.items))}.`
+              : null,
+            saved.statusChangedTo ? `Status is now ${saved.statusChangedTo}.` : null,
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
       },
     )
 
@@ -283,7 +292,7 @@ export function QuotationEditor({
               Pipeline
             </Link>
             <h1 className="mt-0.5 flex flex-wrap items-center gap-2 text-[17px] font-semibold tracking-[-0.01em] text-ink-900">
-              {quotation ? `Quotation ${quotation.referenceNo}` : 'New quotation'}
+              {quotation ? `Quotation ${quotation.referenceNo}` : `New quotation ${referencePreview}`}
               {selected ? (
                 <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-[12px] font-semibold text-brand-700">
                   {revisionLabel(selected.revision)}
@@ -432,9 +441,7 @@ export function QuotationEditor({
                   <LabelCell shaded>Reference Number</LabelCell>
                   <ValueCell>
                     <p className="px-1.5 py-1 font-semibold">
-                      {quotation?.referenceNo ?? (
-                        <span className="font-normal text-ink-400">Assigned on first save</span>
-                      )}
+                      {quotation?.referenceNo ?? referencePreview}
                       <span className="ml-3 text-brand-600">{revisionLabel(selected?.revision ?? 0)}</span>
                     </p>
                   </ValueCell>
@@ -597,6 +604,29 @@ export function QuotationEditor({
                   </tr>
                 </thead>
                 <tbody>
+                  {values.items.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className={cn(
+                          'border border-ink-500 px-3 py-6 text-center text-ink-400',
+                          errors.items && 'bg-negative-soft/50 text-negative',
+                        )}
+                      >
+                        No items yet.
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={addItem}
+                            className="ml-2 font-medium text-brand-600 hover:underline"
+                          >
+                            Add the first item
+                          </button>
+                        ) : null}
+                      </td>
+                      {canEdit ? <td /> : null}
+                    </tr>
+                  ) : null}
                   {values.items.map((item, index) => (
                     <tr key={index} className="group/item align-top">
                       <td className="border border-ink-500 px-2 py-2 text-center tabular">{index + 1}</td>
@@ -665,12 +695,7 @@ export function QuotationEditor({
                             <RowButton label="Duplicate" onClick={() => duplicateItem(index)}>
                               <Copy />
                             </RowButton>
-                            <RowButton
-                              label="Remove"
-                              disabled={values.items.length === 1}
-                              onClick={() => removeItem(index)}
-                              destructive
-                            >
+                            <RowButton label="Remove" onClick={() => removeItem(index)} destructive>
                               <Trash2 />
                             </RowButton>
                           </div>

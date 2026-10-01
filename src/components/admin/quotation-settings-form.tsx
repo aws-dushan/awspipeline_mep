@@ -9,7 +9,7 @@ import { AdminPageHeader, AdminShell } from '@/components/admin/admin-page-heade
 import { Button } from '@/components/ui/button'
 import { Field } from '@/components/ui/field'
 import { Input, Textarea } from '@/components/ui/input'
-import type { QuotationSettingsValues } from '@/lib/quotation/quotation'
+import { buildReference, type QuotationSettingsValues } from '@/lib/quotation/quotation'
 import { updateQuotationSettingsAction } from '@/server/actions/quotation-actions'
 
 /**
@@ -68,7 +68,7 @@ export function QuotationSettingsForm({
     router.refresh()
   }
 
-  const preview = `${values.referencePrefix}${values.nextReferenceNo || ''}`
+  const preview = buildReference(values.referencePrefix, 'DXB', 'J11292')
 
   return (
     <AdminShell>
@@ -109,22 +109,17 @@ export function QuotationSettingsForm({
 
         <section className="panel flex flex-col gap-4 p-5">
           <h2 className="text-[14px] font-semibold text-ink-900">Reference numbers</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Prefix" error={errors.referencePrefix}>
-              <Input value={values.referencePrefix} onChange={(event) => set('referencePrefix', event.target.value)} />
-            </Field>
-            <Field label="Next number" error={errors.nextReferenceNo}>
-              <Input
-                inputMode="numeric"
-                value={String(values.nextReferenceNo)}
-                onChange={(event) => set('nextReferenceNo', Number(event.target.value.replace(/\D/g, '')) || 0)}
-                invalid={Boolean(errors.nextReferenceNo)}
-              />
-            </Field>
-          </div>
-          <p className="text-[12.5px] text-ink-500">
-            The next new quotation will be <span className="font-semibold text-ink-900">{preview}</span>. A
-            number already used is skipped, never issued twice.
+          <Field label="Prefix" required error={errors.referencePrefix} className="sm:max-w-xs">
+            <Input
+              value={values.referencePrefix}
+              onChange={(event) => set('referencePrefix', event.target.value)}
+              invalid={Boolean(errors.referencePrefix)}
+            />
+          </Field>
+          <p className="text-[12.5px] leading-relaxed text-ink-500">
+            A quotation&apos;s reference is the prefix, the request&apos;s location and its Job No - for
+            example <span className="font-semibold text-ink-900">{preview}</span>. It is set when the
+            quotation is first saved and stays the same for every version.
           </p>
         </section>
 

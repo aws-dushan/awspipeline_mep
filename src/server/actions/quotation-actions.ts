@@ -9,15 +9,17 @@ import {
   requireCompanyAccess,
   requireCompanyPermission,
 } from '@/lib/auth/session'
+import { enforceAutomationRules } from '@/lib/database/automation-repository'
 import { prisma } from '@/lib/database/prisma'
 import {
   getQuotationSettings,
+  getReferenceLocation,
   settingsCreateData,
 } from '@/lib/database/quotation-repository'
 import { formatCurrency, parseCalendarDate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
 import {
-  DEFAULT_QUOTATION_SETTINGS,
+  buildReference,
   quotationTotal,
   revisionLabel,
   saveQuotationSchema,
@@ -40,6 +42,8 @@ export type SaveQuotationResult = {
   created: 'quotation' | 'version' | 'updated'
   /** True when the request's Quote Value moved to follow this version. */
   quoteValueUpdated: boolean
+  /** The Status the request moved to, when saving changed it. */
+  statusChangedTo: string | null
 }
 
 function versionData(values: QuotationFormValues, currency: string) {
@@ -66,34 +70,69 @@ function versionData(values: QuotationFormValues, currency: string) {
 }
 
 /**
- * Take the next reference number for a company.
+ * The reference a request's quotation is issued under: <prefix>/<location>/<Job No>.
  *
- * The counter lives on the settings row, so the row is created from the
- * defaults the first time a company issues a quotation. An administrator can
- * move the counter, including backwards; a number already in use is skipped
- * rather than issued twice.
+ * Fixed when the quotation is created. A reference is what the customer quotes
+ * back, so a later change to the request's location does not rename it.
  */
-async function allocateReference(tx: Prisma.TransactionClient, companyId: string): Promise<string> {
-  await tx.quotationSettings.upsert({
-    where: { companyId },
-    create: settingsCreateData(companyId, DEFAULT_QUOTATION_SETTINGS),
-    update: {},
-  })
+async function referenceFor(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  enquiry: { id: string; jobNo: string },
+): Promise<string> {
+  const [settings, location] = await Promise.all([
+    getQuotationSettings(companyId, tx),
+    getReferenceLocation(enquiry.id, tx),
+  ])
+  return buildReference(settings.referencePrefix, location, enquiry.jobNo)
+}
 
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    const settings = await tx.quotationSettings.update({
-      where: { companyId },
-      data: { nextReferenceNo: { increment: 1 } },
-      select: { referencePrefix: true, nextReferenceNo: true },
-    })
-    const referenceNo = `${settings.referencePrefix}${settings.nextReferenceNo - 1}`
-    const taken = await tx.quotation.findFirst({
-      where: { companyId, referenceNo },
-      select: { id: true },
-    })
-    if (!taken) return referenceNo
+type SelectionChange = { from: string | null; to: { id: string; label: string } } | null
+
+/**
+ * What issuing a quotation does to the request's Status, and through the
+ * automation rules to its Probability.
+ *
+ * Status becomes the company's "Quoted" value. Dropdown values are company
+ * data, so a company that has renamed or removed it simply keeps its Status -
+ * a missing label must never stop a quotation being saved.
+ */
+async function quotedSelection(
+  companyId: string,
+  enquiry: { statusValueId: string | null; probabilityValueId: string | null },
+): Promise<{ status: SelectionChange; probability: SelectionChange }> {
+  const quoted = await prisma.dropdownValue.findFirst({
+    where: { companyId, typeKey: 'STATUS', isActive: true, label: { equals: 'Quoted', mode: 'insensitive' } },
+    select: { id: true },
+  })
+  if (!quoted || quoted.id === enquiry.statusValueId) return { status: null, probability: null }
+
+  const enforced = await enforceAutomationRules({
+    companyId,
+    selection: { STATUS: quoted.id, PROBABILITY: enquiry.probabilityValueId },
+    previous: { STATUS: enquiry.statusValueId, PROBABILITY: enquiry.probabilityValueId },
+  })
+  const statusId = enforced.STATUS ?? quoted.id
+  const probabilityId = enforced.PROBABILITY ?? enquiry.probabilityValueId
+
+  const ids = [enquiry.statusValueId, statusId, enquiry.probabilityValueId, probabilityId].filter(
+    (id): id is string => Boolean(id),
+  )
+  const labels = new Map(
+    (
+      await prisma.dropdownValue.findMany({
+        where: { companyId, id: { in: ids } },
+        select: { id: true, label: true },
+      })
+    ).map((value) => [value.id, value.label]),
+  )
+  const change = (from: string | null, to: string | null): SelectionChange =>
+    to && to !== from ? { from: from ? labels.get(from) ?? null : null, to: { id: to, label: labels.get(to) ?? '' } } : null
+
+  return {
+    status: change(enquiry.statusValueId, statusId),
+    probability: change(enquiry.probabilityValueId, probabilityId),
   }
-  throw new ConflictError('Could not allocate a free quotation reference. Check the numbering in quotation settings.')
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -109,7 +148,8 @@ function isUniqueViolation(error: unknown): boolean {
  * - `update-version` corrects the version being shown in place.
  *
  * Whenever the version saved is the latest one, the request's Quote Value is
- * set to its total, so the pipeline always shows the current offer.
+ * set to its total and its Status to Quoted, so the pipeline always shows the
+ * current offer.
  */
 export async function saveQuotationAction(input: unknown): Promise<ActionResult<SaveQuotationResult>> {
   return runAction('saveQuotation', async () => {
@@ -125,6 +165,8 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
         quoteValue: true,
         createdById: true,
         salesResponsibleId: true,
+        statusValueId: true,
+        probabilityValueId: true,
       },
     })
     if (!enquiry) throw new NotFoundError('That request could not be found.')
@@ -135,6 +177,7 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
     const values = parsed.data
     const data = versionData(values, company.currency)
     const total = data.totalAmount
+    const pipeline = await quotedSelection(company.id, enquiry)
 
     let result: SaveQuotationResult & { previousQuoteValue: number | null }
     try {
@@ -154,7 +197,7 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
         let isLatest: boolean
 
         if (!existing) {
-          referenceNo = await allocateReference(tx, company.id)
+          referenceNo = await referenceFor(tx, company.id, enquiry)
           const quotation = await tx.quotation.create({
             data: {
               companyId: company.id,
@@ -254,36 +297,59 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
           await tx.quotation.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
         }
 
-        // The pipeline follows the latest offer.
+        // The pipeline follows the latest offer: its total becomes the Quote
+        // Value and the request is marked Quoted, with the company's
+        // automation rules applied to that as they would be to an edit.
         const previousQuoteValue = enquiry.quoteValue === null ? null : Number(enquiry.quoteValue)
         let quoteValueUpdated = false
-        if (isLatest && previousQuoteValue !== total) {
-          await tx.enquiry.update({
-            where: { id: enquiry.id },
-            data: { quoteValue: total, updatedById: user.id },
-          })
-          quoteValueUpdated = true
+        if (isLatest) {
+          const changes: FieldChange[] = []
+          const update: Prisma.EnquiryUpdateInput = {}
 
-          const change: FieldChange = {
-            field: 'quoteValue',
-            label: 'Quote Value',
-            from: previousQuoteValue === null ? null : formatCurrency(previousQuoteValue, company.currency),
-            to: formatCurrency(total, company.currency),
+          if (previousQuoteValue !== total) {
+            update.quoteValue = total
+            quoteValueUpdated = true
+            changes.push({
+              field: 'quoteValue',
+              label: 'Quote Value',
+              from: previousQuoteValue === null ? null : formatCurrency(previousQuoteValue, company.currency),
+              to: formatCurrency(total, company.currency),
+            })
           }
-          await writeAudit(
-            {
-              actorId: user.id,
-              companyId: company.id,
-              action: 'ENQUIRY_UPDATED',
-              entity: 'ENQUIRY',
-              entityId: enquiry.id,
-              enquiryId: enquiry.id,
-              summary: `Quote Value on Job ${enquiry.jobNo} set from quotation ${referenceNo} ${revisionLabel(saved.revision)}`,
-              changes: [change],
-              metadata: { source: 'quotation', referenceNo, revision: saved.revision },
-            },
-            tx,
-          )
+          if (pipeline.status) {
+            update.status = { connect: { id: pipeline.status.to.id } }
+            changes.push({ field: 'statusValueId', label: 'Status', from: pipeline.status.from, to: pipeline.status.to.label })
+          }
+          if (pipeline.probability) {
+            update.probability = { connect: { id: pipeline.probability.to.id } }
+            changes.push({
+              field: 'probabilityValueId',
+              label: 'Probability',
+              from: pipeline.probability.from,
+              to: pipeline.probability.to.label,
+            })
+          }
+
+          if (changes.length > 0) {
+            await tx.enquiry.update({
+              where: { id: enquiry.id },
+              data: { ...update, updatedBy: { connect: { id: user.id } } },
+            })
+            await writeAudit(
+              {
+                actorId: user.id,
+                companyId: company.id,
+                action: 'ENQUIRY_UPDATED',
+                entity: 'ENQUIRY',
+                entityId: enquiry.id,
+                enquiryId: enquiry.id,
+                summary: `Job ${enquiry.jobNo} updated from quotation ${referenceNo} ${revisionLabel(saved.revision)}`,
+                changes,
+                metadata: { source: 'quotation', referenceNo, revision: saved.revision },
+              },
+              tx,
+            )
+          }
         }
 
         return {
@@ -292,6 +358,7 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
           referenceNo,
           created,
           quoteValueUpdated,
+          statusChangedTo: isLatest ? pipeline.status?.to.label ?? null : null,
           previousQuoteValue,
         }
       })
@@ -328,7 +395,6 @@ const SETTINGS_FIELDS: { field: keyof QuotationSettingsValues & string; label: s
   { field: 'email', label: 'Email' },
   { field: 'footerText', label: 'Footer text' },
   { field: 'referencePrefix', label: 'Reference prefix' },
-  { field: 'nextReferenceNo', label: 'Next reference number' },
   { field: 'defaultScope', label: 'Default scope of work' },
   { field: 'vatNote', label: 'VAT note' },
 ]

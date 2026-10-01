@@ -41,15 +41,15 @@ export type QuotationFormValues = {
   terms: QuotationTerm[]
 }
 
-/** A company's letterhead, numbering and the defaults a new quotation starts from. */
+/** A company's letterhead, reference prefix and the defaults a new quotation starts from. */
 export type QuotationSettingsValues = {
   letterheadName: string
   address: string
   contactNumber: string
   email: string
   footerText: string
+  /** The first part of every reference: <prefix>/<location>/<Job No>. */
   referencePrefix: string
-  nextReferenceNo: number
   defaultScope: string
   vatNote: string
   defaultTerms: QuotationTerm[]
@@ -67,30 +67,46 @@ export const DEFAULT_QUOTATION_SETTINGS: QuotationSettingsValues = {
   contactNumber: '971 4 23 52 333',
   email: 'sales1@awsmep.com',
   footerText: 'Branches: Europe, Saudi Arabia, Kuwait, Bahrain, Qatar, Oman',
-  referencePrefix: 'AWS/DXB/',
-  nextReferenceNo: 1106,
+  referencePrefix: 'AWS',
   defaultScope: 'SUPPLY OF EQUIPMENT ONLY',
   vatNote: 'Price is Exclusive of 5% VAT as applicable from January 1, 2018',
+  // The sales team's standard terms, word for word.
   defaultTerms: [
+    { label: 'Validity of offer:', text: '30 days from the date of this offer.' },
+    { label: 'Delivery:', text: 'Ex-stock, subject to prior sale.' },
     {
-      label: 'Delivery Terms',
-      text: '1) Ex-stock, subject to prior sale.\n2) Delivery can be arranged for a minimum purchase of 5 units.',
+      label: 'Delivery Terms:',
+      text: 'The delivery can be arranged for a minimum purchase 5 Units and delivery lead time will be 2- 3 working days from the date of confirmed order with payment. The delivery will be made in one lot / location. Offloading & rigging at site is not included.',
     },
     {
-      label: 'Standard Delivery Time',
-      text: 'The delivery timeline will be 3–4 working days from the date of confirmed order along with commercial clearances.',
+      label: 'Order Confirmation:',
+      text: 'Orders shall be considered confirmed only upon receipt of official purchase order and payment as per the quotation terms',
     },
-    { label: 'Validity of offer', text: '15 days from the date of this offer.' },
-    { label: 'Payment Terms', text: '100 % advance payment prior to delivery.' },
+    { label: 'Payment Terms :', text: '100 % advance payment prior to delivery.' },
     {
-      label: 'Warranty',
-      text: '12 months for unit and 5 years on the compressor from the date of delivery.',
+      label: 'Warranty :',
+      text: '12 months for unit and 5 years on the compressor from the date of delivery (As per warranty terms & Conditions)',
     },
     {
-      label: '',
+      label: 'Warehouse Fee:',
+      text: 'A warehouse fee of 2% will be charged per month against all non-collected and or / non-delivered goods. These charges will become applicable (3) days from the agreed delivery date.',
+    },
+    {
+      label: 'Order Cancellation:',
       text: 'An order cancellation and reduction of quantity shall not be acceptable once order is placed.',
     },
   ],
+}
+
+/**
+ * A quotation's reference: <prefix>/<location code>/<Job No>, e.g.
+ * AWS/AUH/J11292. The request's Job No is unique within the company, so the
+ * reference is too. A request with no location reads <prefix>/<Job No>.
+ */
+export function buildReference(prefix: string, locationCode: string | null, jobNo: string): string {
+  // The separators are added here, so any the prefix carries are dropped.
+  const head = prefix.trim().replace(/^\/+|\/+$/g, '') || 'AWS'
+  return [head, locationCode?.trim(), jobNo.trim()].filter(Boolean).join('/')
 }
 
 /** R0, R1, ... - how a revision is printed and named. */
@@ -167,12 +183,9 @@ export const quotationSettingsSchema = z.object({
   contactNumber: text(120),
   email: text(160),
   footerText: text(500),
-  referencePrefix: text(40),
-  nextReferenceNo: z.coerce
-    .number({ invalid_type_error: 'Enter a number' })
-    .int('Use a whole number')
-    .min(1, 'Must be at least 1')
-    .max(99_999_999, 'Too large'),
+  referencePrefix: text(40)
+    .min(1, 'Enter the prefix')
+    .regex(/^[^/]+$/, 'Leave out the "/" - it is added between the parts'),
   defaultScope: text(500),
   vatNote: text(300),
   defaultTerms: z.array(termSchema).max(30, 'Too many terms'),

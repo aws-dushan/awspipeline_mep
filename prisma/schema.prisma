@@ -511,9 +511,8 @@ model QuotationSettings {
   /// Small print at the foot of every page.
   footerText     String
 
-  /// References read <prefix><number>, e.g. AWS/DXB/1105.
+  /// References read <prefix>/<location code>/<Job No>, e.g. AWS/AUH/J11292.
   referencePrefix String @default("")
-  nextReferenceNo Int    @default(1)
 
   defaultScope String
   vatNote      String

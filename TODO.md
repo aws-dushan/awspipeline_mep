@@ -115,9 +115,12 @@ Status of the Pipeline / Enquiry Tracking System build.
       bars, details grid, item table, scope and total, terms, brand strip
 - [x] Saving the latest version sets the request's Quote Value to its total,
       recorded in the request's history
-- [x] Reference numbers `<prefix><number>` from a per-company counter; a number
-      already used is skipped. Letterhead, numbering and default terms in
-      Admin → Quotations
+- [x] References read `<prefix>/<location code>/<Job No>`, e.g. `AWS/AUH/J11292`,
+      fixed when the quotation is first saved. Letterhead, prefix and default
+      terms in Admin → Quotations
+- [x] Saving the latest version also sets the request's Status to Quoted (when
+      the company has that value), with the automation rules applied
+- [x] A new quotation starts with no items
 - [x] Created, revised, updated and downloaded are all in the audit trail
 
 ## Live data

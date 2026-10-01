@@ -29,11 +29,27 @@ export async function getQuotationSettings(
     email: row.email,
     footerText: row.footerText,
     referencePrefix: row.referencePrefix,
-    nextReferenceNo: row.nextReferenceNo,
     defaultScope: row.defaultScope,
     vatNote: row.vatNote,
     defaultTerms: readTerms(row.defaultTerms),
   }
+}
+
+/**
+ * The location code a request's quotation reference carries: its first
+ * location in the administrator's order. A request can span several; the
+ * reference names one, and the same one every time.
+ */
+export async function getReferenceLocation(
+  enquiryId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<string | null> {
+  const first = await client.enquiryLocation.findFirst({
+    where: { enquiryId },
+    orderBy: [{ value: { sortOrder: 'asc' } }, { value: { label: 'asc' } }],
+    select: { value: { select: { label: true } } },
+  })
+  return first?.value.label ?? null
 }
 
 /** The settings as a create payload, for the first write of a company's row. */
@@ -46,7 +62,6 @@ export function settingsCreateData(companyId: string, values: QuotationSettingsV
     email: values.email,
     footerText: values.footerText,
     referencePrefix: values.referencePrefix,
-    nextReferenceNo: values.nextReferenceNo,
     defaultScope: values.defaultScope,
     vatNote: values.vatNote,
     defaultTerms: values.defaultTerms as unknown as Prisma.InputJsonValue,

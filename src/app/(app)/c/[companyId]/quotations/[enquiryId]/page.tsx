@@ -8,10 +8,11 @@ import { prisma } from '@/lib/database/prisma'
 import {
   getQuotationForEnquiry,
   getQuotationSettings,
+  getReferenceLocation,
 } from '@/lib/database/quotation-repository'
 import { toISODate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
-import type { QuotationFormValues } from '@/lib/quotation/quotation'
+import { buildReference, type QuotationFormValues } from '@/lib/quotation/quotation'
 
 export const metadata: Metadata = { title: 'Quotation' }
 
@@ -32,10 +33,11 @@ export default async function QuotationPage({
   const { companyId, enquiryId } = await params
   const { user, company } = await requireCompanyPage(companyId)
 
-  const [enquiry, quotation, settings] = await Promise.all([
+  const [enquiry, quotation, settings, location] = await Promise.all([
     getEnquiryById(company.id, enquiryId),
     getQuotationForEnquiry(company.id, enquiryId),
     getQuotationSettings(company.id),
+    getReferenceLocation(enquiryId),
   ])
   if (!enquiry || enquiry.isDeleted) notFound()
 
@@ -76,7 +78,9 @@ export default async function QuotationPage({
       customerEmail: enquiry.email ?? customer?.customer?.email ?? '',
       customerRef: enquiry.projectName ?? '',
       enquiryDate: enquiry.enquiryDate ? toISODate(enquiry.enquiryDate) : null,
-      items: [{ description: enquiry.enquiryDetails ?? '', make: '', qty: 1, unitPrice: 0 }],
+      // Starts empty: items are what the quotation is for, so they are added
+      // deliberately rather than guessed from the enquiry text.
+      items: [],
       scopeOfWork: settings.defaultScope,
       vatNote: settings.vatNote,
       terms: settings.defaultTerms,
@@ -97,6 +101,7 @@ export default async function QuotationPage({
       }}
       settings={settings}
       quotation={quotation}
+      referencePreview={buildReference(settings.referencePrefix, location, enquiry.jobNo)}
       selectedVersionId={selected?.id ?? null}
       draft={draft}
       canEdit={canEdit}

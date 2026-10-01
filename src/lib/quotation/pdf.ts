@@ -250,18 +250,21 @@ function termsBlock(input: QuotationDocumentInput): Content {
 
   return {
     stack: [
-      { text: 'TERMS & CONDITIONS', bold: true, fontSize: 10, margin: [0, 10, 0, 4] },
+      { text: 'TERMS & CONDITIONS', bold: true, fontSize: 10, margin: [0, 8, 0, 3] },
       {
-        table: { widths: [120, '*'], body, dontBreakRows: true },
+        // Set a touch smaller than the items: the standard terms run to eight
+        // entries, and at full size the last one alone spills onto page two.
+        table: { widths: [110, '*'], body, dontBreakRows: true },
         layout: {
           hLineWidth: () => 0,
           vLineWidth: () => 0,
           paddingLeft: () => 0,
           paddingRight: () => 8,
-          paddingTop: () => 2,
-          paddingBottom: () => 2,
+          paddingTop: () => 1.5,
+          paddingBottom: () => 1.5,
         },
-        fontSize: 8.5,
+        fontSize: 8,
+        lineHeight: 1.1,
       },
     ],
   }
