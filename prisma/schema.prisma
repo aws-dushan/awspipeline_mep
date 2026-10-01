@@ -510,7 +510,6 @@ model QuotationSettings {
   letterheadName String
   address        String
   contactNumber  String
-  email          String
   /// Small print at the foot of every page.
   footerText     String
 

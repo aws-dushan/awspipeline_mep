@@ -94,14 +94,6 @@ export function QuotationSettingsForm({
               rows={2}
             />
           </Field>
-          <Field
-            label="Email"
-            hint="Starts a quotation's email when the request has no sales owner"
-            error={errors.email}
-            className="sm:max-w-md"
-          >
-            <Input value={values.email} onChange={(event) => set('email', event.target.value)} />
-          </Field>
           <Field label="Footer line" hint="Printed above the address at the foot of each page" error={errors.footerText}>
             <Input value={values.footerText} onChange={(event) => set('footerText', event.target.value)} />
           </Field>

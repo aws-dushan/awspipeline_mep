@@ -46,7 +46,6 @@ export type QuotationSettingsValues = {
   letterheadName: string
   address: string
   contactNumber: string
-  email: string
   footerText: string
   defaultScope: string
   vatNote: string
@@ -63,7 +62,6 @@ export const DEFAULT_QUOTATION_SETTINGS: QuotationSettingsValues = {
   address:
     'BLOCK 3, 2ND FLOOR, OFFICE NO.214-224\nBIN SHABIB MALL AL QUSAIS INDUSTRIAL AREA-1, DUBAI, UAE',
   contactNumber: '971 4 23 52 333',
-  email: 'sales1@awsmep.com',
   footerText: 'Branches: Europe, Saudi Arabia, Kuwait, Bahrain, Qatar, Oman',
   defaultScope: 'SUPPLY OF EQUIPMENT ONLY',
   vatNote: 'Price is Exclusive of 5% VAT as applicable from January 1, 2018',
@@ -185,7 +183,6 @@ export const quotationSettingsSchema = z.object({
   letterheadName: text(200).min(1, 'Enter the letterhead name'),
   address: text(500),
   contactNumber: text(120),
-  email: text(160),
   footerText: text(500),
   defaultScope: text(500),
   vatNote: text(300),

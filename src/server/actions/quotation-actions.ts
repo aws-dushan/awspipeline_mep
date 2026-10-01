@@ -397,7 +397,6 @@ const SETTINGS_FIELDS: { field: keyof QuotationSettingsValues & string; label: s
   { field: 'letterheadName', label: 'Letterhead name' },
   { field: 'address', label: 'Address' },
   { field: 'contactNumber', label: 'Contact number' },
-  { field: 'email', label: 'Email' },
   { field: 'footerText', label: 'Footer text' },
   { field: 'defaultScope', label: 'Default scope of work' },
   { field: 'vatNote', label: 'VAT note' },
