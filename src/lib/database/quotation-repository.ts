@@ -41,8 +41,8 @@ export type SalesDetails = Pick<QuotationFormValues, 'salesName' | 'salesPhone' 
  * The sales block of a quotation, taken from the request's sales owner.
  *
  * Never typed on the sheet: it is whoever owns the request, with the number
- * and extension from their user record. Where the owner has none, the
- * company's own number and address from the quotation settings stand in.
+ * and extension from their user record - blank when they have none. The
+ * company email stands in only when there is no owner at all.
  */
 export async function getSalesDetails(
   salesResponsibleId: string | null,
@@ -57,7 +57,9 @@ export async function getSalesDetails(
     : null
   return {
     salesName: owner?.name ?? '',
-    salesPhone: formatSalesPhone(owner?.phone ?? null, owner?.phoneExt ?? null) || settings.contactNumber,
+    // Left empty when the owner has none: the company switchboard is not
+    // their contact number, and printing it as one would mislead.
+    salesPhone: formatSalesPhone(owner?.phone ?? null, owner?.phoneExt ?? null),
     salesEmail: owner?.email ?? settings.email,
   }
 }

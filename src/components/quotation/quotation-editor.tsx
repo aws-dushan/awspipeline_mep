@@ -449,7 +449,13 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Sales Responsible</LabelCell>
                   <ValueCell>
-                    <FixedText value={values.salesName} placeholder="No sales owner on the request" />
+                    <SheetInput
+                      value={values.salesName}
+                      onChange={(salesName) => patch({ salesName })}
+                      placeholder="Name"
+                      readOnly={readOnly}
+                      aria-label="Sales responsible"
+                    />
                   </ValueCell>
                   <LabelCell shaded>Customer Name</LabelCell>
                   <ValueCell error={errors.customerName}>
@@ -468,7 +474,13 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Contact Number</LabelCell>
                   <ValueCell>
-                    <FixedText value={values.salesPhone} />
+                    <SheetInput
+                      value={values.salesPhone}
+                      onChange={(salesPhone) => patch({ salesPhone })}
+                      placeholder="Phone ; EXT"
+                      readOnly={readOnly}
+                      aria-label="Contact number"
+                    />
                   </ValueCell>
                   <LabelCell shaded>Attention</LabelCell>
                   <ValueCell>
@@ -495,7 +507,13 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Email</LabelCell>
                   <ValueCell>
-                    <FixedText value={values.salesEmail} />
+                    <SheetInput
+                      value={values.salesEmail}
+                      onChange={(salesEmail) => patch({ salesEmail })}
+                      placeholder="sales@example.com"
+                      readOnly={readOnly}
+                      aria-label="Sales email"
+                    />
                   </ValueCell>
                   <LabelCell shaded>E-mail</LabelCell>
                   <ValueCell>
@@ -940,21 +958,6 @@ function ValueCell({ children, error }: { children: React.ReactNode; error?: str
     <td className={cn('border border-ink-500 p-0.5 align-top', error && 'bg-negative-soft/50')}>
       {children}
     </td>
-  )
-}
-
-/**
- * A value the sheet shows but does not take: the sales block comes from the
- * request's sales owner and their user record, and is filled in on save.
- */
-function FixedText({ value, placeholder }: { value: string; placeholder?: string }) {
-  return (
-    <p
-      title="Taken from the request's sales owner"
-      className={cn('px-1.5 py-1 text-ink-700', !value && 'text-ink-300')}
-    >
-      {value || placeholder || '—'}
-    </p>
   )
 }
 

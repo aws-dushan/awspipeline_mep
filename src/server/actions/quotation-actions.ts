@@ -14,7 +14,6 @@ import { prisma } from '@/lib/database/prisma'
 import {
   getQuotationSettings,
   getReferenceLocation,
-  getSalesDetails,
   settingsCreateData,
 } from '@/lib/database/quotation-repository'
 import { formatCurrency, parseCalendarDate } from '@/lib/format'
@@ -178,14 +177,10 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
       throw new AuthorizationError('You can view this quotation but not change it.')
     }
 
-    // The sales block is never taken from the form: it is the request's sales
-    // owner as recorded now, whatever the sheet happened to show.
-    const settings = await getQuotationSettings(company.id)
-    const [sales, pipeline] = await Promise.all([
-      getSalesDetails(enquiry.salesResponsibleId, settings),
-      quotedSelection(company.id, enquiry),
-    ])
-    const values = { ...parsed.data, ...sales }
+    // The sales block arrives filled in from the request's sales owner and may
+    // have been adjusted on the sheet; what was saved is what prints.
+    const values = parsed.data
+    const pipeline = await quotedSelection(company.id, enquiry)
     const data = versionData(values, company.currency)
     const total = data.totalAmount
 

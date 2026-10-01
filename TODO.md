@@ -121,9 +121,10 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Saving the latest version also sets the request's Status to Quoted (when
       the company has that value), with the automation rules applied. A Won
       request keeps its Status
-- [x] The sales block (owner, contact number and extension, email, address) is
-      taken from the request's sales owner and the letterhead, not typed. Users
-      carry a contact number and extension, set in Admin → Users
+- [x] The sales block (owner, contact number and extension, email) is filled in
+      from the request's sales owner and stays editable on the sheet; the contact
+      number is left blank when the owner has none. Users carry a contact number
+      and extension, set in Admin → Users
 - [x] Customer E-mail and Address sit level with the sales Email and Address
 - [x] Drop `quotation_settings.referencePrefix` and `nextReferenceNo` once the
       code that no longer reads them is live

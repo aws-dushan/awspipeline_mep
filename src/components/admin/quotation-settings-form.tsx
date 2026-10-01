@@ -94,14 +94,14 @@ export function QuotationSettingsForm({
               rows={2}
             />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Contact number" hint="Starts every new quotation's contact number" error={errors.contactNumber}>
-              <Input value={values.contactNumber} onChange={(event) => set('contactNumber', event.target.value)} />
-            </Field>
-            <Field label="Email" hint="Used when the sales owner has no email of their own" error={errors.email}>
-              <Input value={values.email} onChange={(event) => set('email', event.target.value)} />
-            </Field>
-          </div>
+          <Field
+            label="Email"
+            hint="Starts a quotation's email when the request has no sales owner"
+            error={errors.email}
+            className="sm:max-w-md"
+          >
+            <Input value={values.email} onChange={(event) => set('email', event.target.value)} />
+          </Field>
           <Field label="Footer line" hint="Printed above the address at the foot of each page" error={errors.footerText}>
             <Input value={values.footerText} onChange={(event) => set('footerText', event.target.value)} />
           </Field>
