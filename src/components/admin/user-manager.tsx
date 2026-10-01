@@ -359,6 +359,8 @@ const USER_FIELD_LABELS: Record<string, string> = {
   name: 'Full name',
   username: 'Username',
   email: 'Email',
+  phone: 'Contact number',
+  phoneExt: 'Extension',
   role: 'Role',
   password: 'Password',
   companyIds: 'Companies',
@@ -390,6 +392,8 @@ function UserDialog({
       name: user?.name ?? '',
       username: user?.username ?? '',
       email: user?.email ?? '',
+      phone: user?.phone ?? '',
+      phoneExt: user?.phoneExt ?? '',
       role: user?.role ?? Role.USER,
       // A new account is offered the first colour nobody else is using, so
       // two people are not drawn the same by default. Hashing the name looked
@@ -574,6 +578,33 @@ function UserDialog({
                   autoComplete="off"
                   invalid={Boolean(errors.email)}
                   {...register('email')}
+                />
+              </Field>
+            </div>
+
+            {/* Printed as the sales contact on the quotations this person owns. */}
+            <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+              <Field
+                label="Contact number"
+                htmlFor="user-phone"
+                error={errors.phone?.message}
+                hint="Shown on their quotations, e.g. 971 4 23 52 333"
+              >
+                <Input
+                  id="user-phone"
+                  inputMode="tel"
+                  autoComplete="off"
+                  invalid={Boolean(errors.phone)}
+                  {...register('phone')}
+                />
+              </Field>
+              <Field label="Extension" htmlFor="user-phone-ext" error={errors.phoneExt?.message}>
+                <Input
+                  id="user-phone-ext"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  invalid={Boolean(errors.phoneExt)}
+                  {...register('phoneExt')}
                 />
               </Field>
             </div>

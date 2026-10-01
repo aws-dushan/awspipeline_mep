@@ -130,8 +130,10 @@ function headerBlock(input: QuotationDocumentInput): Content {
     ['Reference Number', `${referenceNo}   ${revisionLabel(revision)}`],
     ['Customer Name', values.customerName],
     ['Attention', attention],
+    // Level with the sales Email and Address on the left: the address row is
+    // the tall one, which is where a customer's address needs the room.
+    ['E-mail', values.customerEmail],
     ['Address', values.customerAddress],
-    ['E-mail Address', values.customerEmail],
     ['Customer Ref.', values.customerRef],
     ['Enquiry Date', date(values.enquiryDate)],
   ]

@@ -48,8 +48,6 @@ export type QuotationSettingsValues = {
   contactNumber: string
   email: string
   footerText: string
-  /** The first part of every reference: <prefix>/<location>/<Job No>. */
-  referencePrefix: string
   defaultScope: string
   vatNote: string
   defaultTerms: QuotationTerm[]
@@ -67,7 +65,6 @@ export const DEFAULT_QUOTATION_SETTINGS: QuotationSettingsValues = {
   contactNumber: '971 4 23 52 333',
   email: 'sales1@awsmep.com',
   footerText: 'Branches: Europe, Saudi Arabia, Kuwait, Bahrain, Qatar, Oman',
-  referencePrefix: 'AWS',
   defaultScope: 'SUPPLY OF EQUIPMENT ONLY',
   vatNote: 'Price is Exclusive of 5% VAT as applicable from January 1, 2018',
   // The sales team's standard terms, word for word.
@@ -99,14 +96,21 @@ export const DEFAULT_QUOTATION_SETTINGS: QuotationSettingsValues = {
 }
 
 /**
- * A quotation's reference: <prefix>/<location code>/<Job No>, e.g.
- * AWS/AUH/J11292. The request's Job No is unique within the company, so the
- * reference is too. A request with no location reads <prefix>/<Job No>.
+ * A quotation's reference: AWS/<location code>/<Job No>, e.g. AWS/AUH/J11292.
+ *
+ * Derived, never typed: the request's Job No is unique within the company, so
+ * the reference is too. A request with no location reads AWS/<Job No>.
  */
-export function buildReference(prefix: string, locationCode: string | null, jobNo: string): string {
-  // The separators are added here, so any the prefix carries are dropped.
-  const head = prefix.trim().replace(/^\/+|\/+$/g, '') || 'AWS'
-  return [head, locationCode?.trim(), jobNo.trim()].filter(Boolean).join('/')
+export function buildReference(locationCode: string | null, jobNo: string): string {
+  return ['AWS', locationCode?.trim(), jobNo.trim()].filter(Boolean).join('/')
+}
+
+/** The sales contact as printed: "971 4 23 52 333 ; EXT: 6494". */
+export function formatSalesPhone(phone: string | null, ext: string | null): string {
+  const number = phone?.trim() ?? ''
+  const extension = ext?.trim() ?? ''
+  if (!number) return extension ? `EXT: ${extension}` : ''
+  return extension ? `${number} ; EXT: ${extension}` : number
 }
 
 /** R0, R1, ... - how a revision is printed and named. */
@@ -183,9 +187,6 @@ export const quotationSettingsSchema = z.object({
   contactNumber: text(120),
   email: text(160),
   footerText: text(500),
-  referencePrefix: text(40)
-    .min(1, 'Enter the prefix')
-    .regex(/^[^/]+$/, 'Leave out the "/" - it is added between the parts'),
   defaultScope: text(500),
   vatNote: text(300),
   defaultTerms: z.array(termSchema).max(30, 'Too many terms'),

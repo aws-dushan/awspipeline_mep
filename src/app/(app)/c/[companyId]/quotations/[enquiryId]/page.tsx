@@ -9,6 +9,7 @@ import {
   getQuotationForEnquiry,
   getQuotationSettings,
   getReferenceLocation,
+  getSalesDetails,
 } from '@/lib/database/quotation-repository'
 import { toISODate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
@@ -52,13 +53,8 @@ export default async function QuotationPage({
 
   let draft: QuotationFormValues | null = null
   if (!quotation) {
-    const [owner, customer] = await Promise.all([
-      enquiry.salesResponsibleId
-        ? prisma.user.findUnique({
-            where: { id: enquiry.salesResponsibleId },
-            select: { name: true, email: true },
-          })
-        : null,
+    const [sales, customer] = await Promise.all([
+      getSalesDetails(enquiry.salesResponsibleId, settings),
       prisma.enquiry.findUnique({
         where: { id: enquiry.id },
         select: { customer: { select: { email: true, contactPerson: true, phone: true } } },
@@ -68,9 +64,7 @@ export default async function QuotationPage({
     draft = {
       quotationDate: toISODate(new Date()) ?? '',
       validUntil: null,
-      salesName: owner?.name ?? user.name,
-      salesPhone: settings.contactNumber,
-      salesEmail: owner?.email ?? settings.email,
+      ...sales,
       customerName: enquiry.customerName,
       attention: enquiry.contactPerson ?? customer?.customer?.contactPerson ?? '',
       attentionPhone: enquiry.phoneNumber ?? customer?.customer?.phone ?? '',
@@ -101,7 +95,7 @@ export default async function QuotationPage({
       }}
       settings={settings}
       quotation={quotation}
-      referencePreview={buildReference(settings.referencePrefix, location, enquiry.jobNo)}
+      referencePreview={buildReference(location, enquiry.jobNo)}
       selectedVersionId={selected?.id ?? null}
       draft={draft}
       canEdit={canEdit}

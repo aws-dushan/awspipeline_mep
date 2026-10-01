@@ -152,6 +152,9 @@ model User {
   username     String    @unique
   /// Contact address. Not used to sign in.
   email        String    @unique
+  /// Direct line and extension, printed as the sales contact on quotations.
+  phone        String?
+  phoneExt     String?
   /// Optional short display code shown in the pipeline, e.g. "SRUTY".
   displayCode  String?
   passwordHash String
@@ -510,9 +513,6 @@ model QuotationSettings {
   email          String
   /// Small print at the foot of every page.
   footerText     String
-
-  /// References read <prefix>/<location code>/<Job No>, e.g. AWS/AUH/J11292.
-  referencePrefix String @default("")
 
   defaultScope String
   vatNote      String

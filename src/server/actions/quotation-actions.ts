@@ -14,6 +14,7 @@ import { prisma } from '@/lib/database/prisma'
 import {
   getQuotationSettings,
   getReferenceLocation,
+  getSalesDetails,
   settingsCreateData,
 } from '@/lib/database/quotation-repository'
 import { formatCurrency, parseCalendarDate } from '@/lib/format'
@@ -70,21 +71,16 @@ function versionData(values: QuotationFormValues, currency: string) {
 }
 
 /**
- * The reference a request's quotation is issued under: <prefix>/<location>/<Job No>.
+ * The reference a request's quotation is issued under: AWS/<location>/<Job No>.
  *
  * Fixed when the quotation is created. A reference is what the customer quotes
  * back, so a later change to the request's location does not rename it.
  */
 async function referenceFor(
   tx: Prisma.TransactionClient,
-  companyId: string,
   enquiry: { id: string; jobNo: string },
 ): Promise<string> {
-  const [settings, location] = await Promise.all([
-    getQuotationSettings(companyId, tx),
-    getReferenceLocation(enquiry.id, tx),
-  ])
-  return buildReference(settings.referencePrefix, location, enquiry.jobNo)
+  return buildReference(await getReferenceLocation(enquiry.id, tx), enquiry.jobNo)
 }
 
 type SelectionChange = { from: string | null; to: { id: string; label: string } } | null
@@ -93,19 +89,27 @@ type SelectionChange = { from: string | null; to: { id: string; label: string } 
  * What issuing a quotation does to the request's Status, and through the
  * automation rules to its Probability.
  *
- * Status becomes the company's "Quoted" value. Dropdown values are company
- * data, so a company that has renamed or removed it simply keeps its Status -
- * a missing label must never stop a quotation being saved.
+ * Status becomes the company's "Quoted" value - unless the request is already
+ * Won: revising the quotation for a won job must not reopen it. Dropdown values
+ * are company data, so a company that has renamed or removed "Quoted" simply
+ * keeps its Status - a missing label must never stop a quotation being saved.
  */
 async function quotedSelection(
   companyId: string,
   enquiry: { statusValueId: string | null; probabilityValueId: string | null },
 ): Promise<{ status: SelectionChange; probability: SelectionChange }> {
-  const quoted = await prisma.dropdownValue.findFirst({
-    where: { companyId, typeKey: 'STATUS', isActive: true, label: { equals: 'Quoted', mode: 'insensitive' } },
-    select: { id: true },
-  })
-  if (!quoted || quoted.id === enquiry.statusValueId) return { status: null, probability: null }
+  const unchanged = { status: null, probability: null }
+  const [quoted, current] = await Promise.all([
+    prisma.dropdownValue.findFirst({
+      where: { companyId, typeKey: 'STATUS', isActive: true, label: { equals: 'Quoted', mode: 'insensitive' } },
+      select: { id: true },
+    }),
+    enquiry.statusValueId
+      ? prisma.dropdownValue.findUnique({ where: { id: enquiry.statusValueId }, select: { label: true } })
+      : null,
+  ])
+  if (!quoted || quoted.id === enquiry.statusValueId) return unchanged
+  if (current?.label.trim().toLowerCase() === 'won') return unchanged
 
   const enforced = await enforceAutomationRules({
     companyId,
@@ -174,10 +178,16 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
       throw new AuthorizationError('You can view this quotation but not change it.')
     }
 
-    const values = parsed.data
+    // The sales block is never taken from the form: it is the request's sales
+    // owner as recorded now, whatever the sheet happened to show.
+    const settings = await getQuotationSettings(company.id)
+    const [sales, pipeline] = await Promise.all([
+      getSalesDetails(enquiry.salesResponsibleId, settings),
+      quotedSelection(company.id, enquiry),
+    ])
+    const values = { ...parsed.data, ...sales }
     const data = versionData(values, company.currency)
     const total = data.totalAmount
-    const pipeline = await quotedSelection(company.id, enquiry)
 
     let result: SaveQuotationResult & { previousQuoteValue: number | null }
     try {
@@ -197,7 +207,7 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
         let isLatest: boolean
 
         if (!existing) {
-          referenceNo = await referenceFor(tx, company.id, enquiry)
+          referenceNo = await referenceFor(tx, enquiry)
           const quotation = await tx.quotation.create({
             data: {
               companyId: company.id,
@@ -394,7 +404,6 @@ const SETTINGS_FIELDS: { field: keyof QuotationSettingsValues & string; label: s
   { field: 'contactNumber', label: 'Contact number' },
   { field: 'email', label: 'Email' },
   { field: 'footerText', label: 'Footer text' },
-  { field: 'referencePrefix', label: 'Reference prefix' },
   { field: 'defaultScope', label: 'Default scope of work' },
   { field: 'vatNote', label: 'VAT note' },
 ]

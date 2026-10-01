@@ -449,17 +449,12 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Sales Responsible</LabelCell>
                   <ValueCell>
-                    <SheetInput
-                      value={values.salesName}
-                      onChange={(salesName) => patch({ salesName })}
-                      placeholder="Name"
-                      readOnly={readOnly}
-                      aria-label="Sales responsible"
-                    />
+                    <FixedText value={values.salesName} placeholder="No sales owner on the request" />
                   </ValueCell>
                   <LabelCell shaded>Customer Name</LabelCell>
                   <ValueCell error={errors.customerName}>
-                    <SheetInput
+                    {/* Wraps rather than scrolls: company names run long. */}
+                    <SheetTextarea
                       value={values.customerName}
                       onChange={(customerName) => patch({ customerName })}
                       placeholder="Customer name"
@@ -473,13 +468,7 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Contact Number</LabelCell>
                   <ValueCell>
-                    <SheetInput
-                      value={values.salesPhone}
-                      onChange={(salesPhone) => patch({ salesPhone })}
-                      placeholder="Phone ; EXT"
-                      readOnly={readOnly}
-                      aria-label="Contact number"
-                    />
+                    <FixedText value={values.salesPhone} />
                   </ValueCell>
                   <LabelCell shaded>Attention</LabelCell>
                   <ValueCell>
@@ -506,13 +495,25 @@ export function QuotationEditor({
                 <tr>
                   <LabelCell>Email</LabelCell>
                   <ValueCell>
+                    <FixedText value={values.salesEmail} />
+                  </ValueCell>
+                  <LabelCell shaded>E-mail</LabelCell>
+                  <ValueCell>
                     <SheetInput
-                      value={values.salesEmail}
-                      onChange={(salesEmail) => patch({ salesEmail })}
-                      placeholder="sales@example.com"
+                      value={values.customerEmail}
+                      onChange={(customerEmail) => patch({ customerEmail })}
+                      placeholder="customer@example.com"
                       readOnly={readOnly}
-                      aria-label="Sales email"
+                      aria-label="Customer email"
                     />
+                  </ValueCell>
+                </tr>
+                {/* Both addresses on one row: it is the tall one, so the
+                    customer's address gets the room the sales address has. */}
+                <tr>
+                  <LabelCell>Address</LabelCell>
+                  <ValueCell>
+                    <p className="whitespace-pre-line px-1.5 py-1 text-ink-700">{settings.address}</p>
                   </ValueCell>
                   <LabelCell shaded>Address</LabelCell>
                   <ValueCell>
@@ -522,22 +523,6 @@ export function QuotationEditor({
                       placeholder="Customer address"
                       readOnly={readOnly}
                       aria-label="Customer address"
-                    />
-                  </ValueCell>
-                </tr>
-                <tr>
-                  <LabelCell>Address</LabelCell>
-                  <ValueCell>
-                    <p className="whitespace-pre-line px-1.5 py-1 text-ink-700">{settings.address}</p>
-                  </ValueCell>
-                  <LabelCell shaded>E-mail Address</LabelCell>
-                  <ValueCell>
-                    <SheetInput
-                      value={values.customerEmail}
-                      onChange={(customerEmail) => patch({ customerEmail })}
-                      placeholder="customer@example.com"
-                      readOnly={readOnly}
-                      aria-label="Customer email"
                     />
                   </ValueCell>
                 </tr>
@@ -955,6 +940,21 @@ function ValueCell({ children, error }: { children: React.ReactNode; error?: str
     <td className={cn('border border-ink-500 p-0.5 align-top', error && 'bg-negative-soft/50')}>
       {children}
     </td>
+  )
+}
+
+/**
+ * A value the sheet shows but does not take: the sales block comes from the
+ * request's sales owner and their user record, and is filled in on save.
+ */
+function FixedText({ value, placeholder }: { value: string; placeholder?: string }) {
+  return (
+    <p
+      title="Taken from the request's sales owner"
+      className={cn('px-1.5 py-1 text-ink-700', !value && 'text-ink-300')}
+    >
+      {value || placeholder || '—'}
+    </p>
   )
 }
 

@@ -68,7 +68,7 @@ export function QuotationSettingsForm({
     router.refresh()
   }
 
-  const preview = buildReference(values.referencePrefix, 'DXB', 'J11292')
+  const preview = buildReference('DXB', 'J11292')
 
   return (
     <AdminShell>
@@ -109,17 +109,10 @@ export function QuotationSettingsForm({
 
         <section className="panel flex flex-col gap-4 p-5">
           <h2 className="text-[14px] font-semibold text-ink-900">Reference numbers</h2>
-          <Field label="Prefix" required error={errors.referencePrefix} className="sm:max-w-xs">
-            <Input
-              value={values.referencePrefix}
-              onChange={(event) => set('referencePrefix', event.target.value)}
-              invalid={Boolean(errors.referencePrefix)}
-            />
-          </Field>
           <p className="text-[12.5px] leading-relaxed text-ink-500">
-            A quotation&apos;s reference is the prefix, the request&apos;s location and its Job No - for
-            example <span className="font-semibold text-ink-900">{preview}</span>. It is set when the
-            quotation is first saved and stays the same for every version.
+            References are made from the request and cannot be edited: AWS, the request&apos;s location
+            and its Job No - for example <span className="font-semibold text-ink-900">{preview}</span>.
+            A reference is set when the quotation is first saved and stays the same for every version.
           </p>
         </section>
 

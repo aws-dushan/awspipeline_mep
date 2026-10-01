@@ -122,6 +122,21 @@ const baseUserSchema = z.object({
     .min(1, 'Email is required')
     .email('Enter a valid email address')
     .transform((value) => value.toLowerCase()),
+  /** Direct line and extension, printed as the sales contact on quotations. */
+  phone: z
+    .string()
+    .trim()
+    .max(40, 'Keep this under 40 characters')
+    .regex(/^[\d\s+()-]*$/, 'Use digits, spaces, + ( ) and - only')
+    .optional()
+    .transform((value) => value || null),
+  phoneExt: z
+    .string()
+    .trim()
+    .max(10, 'Keep this under 10 characters')
+    .regex(/^\d*$/, 'Digits only')
+    .optional()
+    .transform((value) => value || null),
   role: z.nativeEnum(Role),
   /**
    * The colour this person is drawn in - on their avatar, and so in the

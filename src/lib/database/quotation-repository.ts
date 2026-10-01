@@ -6,6 +6,7 @@ import { prisma } from '@/lib/database/prisma'
 import { toISODate } from '@/lib/format'
 import {
   DEFAULT_QUOTATION_SETTINGS,
+  formatSalesPhone,
   readItems,
   readTerms,
   type QuotationFormValues,
@@ -28,10 +29,36 @@ export async function getQuotationSettings(
     contactNumber: row.contactNumber,
     email: row.email,
     footerText: row.footerText,
-    referencePrefix: row.referencePrefix,
     defaultScope: row.defaultScope,
     vatNote: row.vatNote,
     defaultTerms: readTerms(row.defaultTerms),
+  }
+}
+
+export type SalesDetails = Pick<QuotationFormValues, 'salesName' | 'salesPhone' | 'salesEmail'>
+
+/**
+ * The sales block of a quotation, taken from the request's sales owner.
+ *
+ * Never typed on the sheet: it is whoever owns the request, with the number
+ * and extension from their user record. Where the owner has none, the
+ * company's own number and address from the quotation settings stand in.
+ */
+export async function getSalesDetails(
+  salesResponsibleId: string | null,
+  settings: QuotationSettingsValues,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<SalesDetails> {
+  const owner = salesResponsibleId
+    ? await client.user.findUnique({
+        where: { id: salesResponsibleId },
+        select: { name: true, email: true, phone: true, phoneExt: true },
+      })
+    : null
+  return {
+    salesName: owner?.name ?? '',
+    salesPhone: formatSalesPhone(owner?.phone ?? null, owner?.phoneExt ?? null) || settings.contactNumber,
+    salesEmail: owner?.email ?? settings.email,
   }
 }
 
@@ -61,7 +88,6 @@ export function settingsCreateData(companyId: string, values: QuotationSettingsV
     contactNumber: values.contactNumber,
     email: values.email,
     footerText: values.footerText,
-    referencePrefix: values.referencePrefix,
     defaultScope: values.defaultScope,
     vatNote: values.vatNote,
     defaultTerms: values.defaultTerms as unknown as Prisma.InputJsonValue,
