@@ -125,7 +125,7 @@ Status of the Pipeline / Enquiry Tracking System build.
       taken from the request's sales owner and the letterhead, not typed. Users
       carry a contact number and extension, set in Admin → Users
 - [x] Customer E-mail and Address sit level with the sales Email and Address
-- [ ] Drop `quotation_settings.referencePrefix` and `nextReferenceNo` once the
+- [x] Drop `quotation_settings.referencePrefix` and `nextReferenceNo` once the
       code that no longer reads them is live
 - [x] A new quotation starts with no items
 - [x] Created, revised, updated and downloaded are all in the audit trail
