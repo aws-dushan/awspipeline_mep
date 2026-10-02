@@ -38,6 +38,7 @@ import {
 import {
   lineTotal,
   quotationFormSchema,
+  quotationPayable,
   quotationTotal,
   revisionLabel,
   type QuotationFormValues,
@@ -61,7 +62,17 @@ type DraftItem = Omit<QuotationItem, 'qty' | 'unitPrice'> & {
   qty: number | string
   unitPrice: number | string
 }
-type Draft = Omit<QuotationFormValues, 'items'> & { items: DraftItem[] }
+type Draft = Omit<QuotationFormValues, 'items' | 'discountedPrice'> & {
+  items: DraftItem[]
+  discountedPrice: number | string | null
+}
+
+/** The discounted price as a number, or null when the field is empty. */
+function discountOf(value: Draft['discountedPrice']): number | null {
+  if (value === null || String(value).trim() === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
 
 const amountFormat = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 2,
@@ -73,6 +84,7 @@ function fingerprint(draft: Draft): string {
   return JSON.stringify({
     ...draft,
     items: draft.items.map((item) => ({ ...item, qty: Number(item.qty), unitPrice: Number(item.unitPrice) })),
+    discountedPrice: discountOf(draft.discountedPrice),
   })
 }
 
@@ -114,6 +126,7 @@ export function QuotationEditor({
 
   const dirty = React.useMemo(() => fingerprint(values) !== fingerprint(base), [values, base])
   const total = quotationTotal(values.items.map((item) => ({ qty: Number(item.qty), unitPrice: Number(item.unitPrice) })))
+  const discount = discountOf(values.discountedPrice)
   const readOnly = !canEdit
 
   // Leaving with unsaved edits asks first - closing the tab included.
@@ -241,7 +254,7 @@ export function QuotationEditor({
         description:
           [
             saved.quoteValueUpdated
-              ? `Quote Value is now ${company.currency} ${amountFormat.format(quotationTotal(parsed.data.items))}.`
+              ? `Quote Value is now ${company.currency} ${amountFormat.format(quotationPayable(parsed.data))}.`
               : null,
             saved.statusChangedTo ? `Status is now ${saved.statusChangedTo}.` : null,
           ]
@@ -748,6 +761,54 @@ export function QuotationEditor({
                     </td>
                     {canEdit ? <td className="bg-white" /> : null}
                   </tr>
+
+                  {/*
+                    Optional, as on the hand-made quotations: a final agreed
+                    figure under the total. Empty means no discount, and then
+                    the row is not printed.
+                  */}
+                  {canEdit || discount !== null ? (
+                    <tr className="bg-[#FAE2D6]">
+                      <td colSpan={3} className="border border-ink-500 px-2 py-2 text-[11.5px] text-ink-500">
+                        {discount !== null && discount < total ? (
+                          <>
+                            Discount of {company.currency} {amountFormat.format(total - discount)} (
+                            {((1 - discount / total) * 100).toFixed(2)}%) - not printed
+                          </>
+                        ) : canEdit ? (
+                          'Optional - leave empty for no discount'
+                        ) : null}
+                      </td>
+                      <td colSpan={2} className="border border-ink-500 px-2 py-2 text-right font-bold">
+                        Special Discounted Price
+                      </td>
+                      <td
+                        className={cn(
+                          'border border-ink-500 p-0.5',
+                          errors.discountedPrice && 'bg-negative-soft/50',
+                        )}
+                      >
+                        <SheetInput
+                          inputMode="decimal"
+                          value={values.discountedPrice === null ? '' : String(values.discountedPrice)}
+                          onChange={(discountedPrice) => patch({ discountedPrice })}
+                          placeholder="—"
+                          readOnly={readOnly}
+                          error={errors.discountedPrice}
+                          className="text-right text-[13.5px] font-bold tabular"
+                          aria-label="Special discounted price"
+                        />
+                      </td>
+                      {canEdit ? <td className="bg-white" /> : null}
+                    </tr>
+                  ) : null}
+                  {errors.discountedPrice ? (
+                    <tr>
+                      <td colSpan={6} className="pt-1 text-right text-[12px] font-medium text-negative">
+                        {errors.discountedPrice}
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
@@ -881,7 +942,7 @@ export function QuotationEditor({
                           <span className="text-[11px] font-medium text-positive">Latest</span>
                         ) : null}
                         <span className="ml-auto text-[12.5px] font-semibold text-ink-900 tabular">
-                          {version.currency} {amountFormat.format(version.totalAmount)}
+                          {version.currency} {amountFormat.format(version.payable)}
                         </span>
                       </div>
                       <p className="mt-1 text-[11.5px] text-ink-400">

@@ -114,6 +114,7 @@ const versionSelect = {
   terms: true,
   currency: true,
   totalAmount: true,
+  discountedPrice: true,
   createdAt: true,
   updatedAt: true,
   createdBy: { select: { id: true, name: true } },
@@ -128,6 +129,8 @@ export type QuotationVersionView = {
   revision: number
   currency: string
   totalAmount: number
+  /** The discounted price when there is one, else the total. */
+  payable: number
   createdAt: string
   updatedAt: string
   createdBy: { id: string; name: string } | null
@@ -148,6 +151,7 @@ export function serializeVersion(row: VersionRow): QuotationVersionView {
     revision: row.revision,
     currency: row.currency,
     totalAmount: Number(row.totalAmount),
+    payable: Number(row.discountedPrice ?? row.totalAmount),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     createdBy: row.createdBy,
@@ -166,6 +170,7 @@ export function serializeVersion(row: VersionRow): QuotationVersionView {
       customerRef: row.customerRef,
       enquiryDate: toISODate(calendarDate(row.enquiryDate)),
       items: readItems(row.items),
+      discountedPrice: row.discountedPrice === null ? null : Number(row.discountedPrice),
       scopeOfWork: row.scopeOfWork,
       vatNote: row.vatNote,
       terms: readTerms(row.terms),

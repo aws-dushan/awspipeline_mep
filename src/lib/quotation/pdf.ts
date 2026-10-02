@@ -226,6 +226,29 @@ function itemsBlock(input: QuotationDocumentInput): Content {
     },
   ])
 
+  // Only when a discount was agreed, worded as the hand-made quotations put it.
+  if (values.discountedPrice !== null) {
+    body.push([
+      { text: '', colSpan: 3, fillColor: BAR_FILL },
+      {},
+      {},
+      {
+        text: 'Special Discounted Price',
+        bold: true,
+        alignment: 'right',
+        colSpan: 2,
+        fillColor: BAR_FILL,
+      },
+      {},
+      {
+        text: amount.format(values.discountedPrice),
+        bold: true,
+        alignment: 'right',
+        fillColor: BAR_FILL,
+      },
+    ])
+  }
+
   return {
     table: {
       // The header row repeats on every page a long item list runs onto.

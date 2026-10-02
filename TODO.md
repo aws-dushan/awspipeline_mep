@@ -129,6 +129,8 @@ Status of the Pipeline / Enquiry Tracking System build.
 - [x] Drop `quotation_settings.referencePrefix` and `nextReferenceNo` once the
       code that no longer reads them is live
 - [x] A new quotation starts with no items
+- [x] Optional "Special Discounted Price" under the total: printed only when set,
+      must be below the total, and becomes the request's Quote Value
 - [x] Created, revised, updated and downloaded are all in the audit trail
 
 ## Live data

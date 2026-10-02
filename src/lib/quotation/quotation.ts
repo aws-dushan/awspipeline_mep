@@ -36,6 +36,12 @@ export type QuotationFormValues = {
   customerRef: string
   enquiryDate: string | null
   items: QuotationItem[]
+  /**
+   * The "Special Discounted Price": a final figure agreed below the total.
+   * Null for no discount. Printed under the total, and the price the request
+   * is quoted at.
+   */
+  discountedPrice: number | null
   scopeOfWork: string
   vatNote: string
   terms: QuotationTerm[]
@@ -132,6 +138,14 @@ export function quotationTotal(items: Pick<QuotationItem, 'qty' | 'unitPrice'>[]
   return money(items.reduce((sum, item) => sum + lineTotal(item), 0))
 }
 
+/** What the customer is asked to pay: the discounted price when there is one. */
+export function quotationPayable(values: {
+  items: Pick<QuotationItem, 'qty' | 'unitPrice'>[]
+  discountedPrice: number | null
+}): number {
+  return values.discountedPrice ?? quotationTotal(values.items)
+}
+
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const text = (max: number) => z.string().trim().max(max, `Keep this under ${max} characters`)
@@ -174,9 +188,23 @@ export const quotationFormSchema = z.object({
   customerRef: text(500),
   enquiryDate: optionalDate,
   items: z.array(quotationItemSchema).min(1, 'Add at least one item').max(200, 'Too many items'),
+  discountedPrice: z
+    .union([z.literal(''), z.null(), z.undefined(), z.coerce.number({ invalid_type_error: 'Enter a price' })])
+    .transform((value) => (value === '' || value === null || value === undefined ? null : Math.round(value * 100) / 100))
+    .refine((value) => value === null || value >= 0, 'The price cannot be negative'),
   scopeOfWork: text(500),
   vatNote: text(300),
   terms: z.array(termSchema).max(30, 'Too many terms'),
+}).superRefine((values, context) => {
+  // A "discounted" price at or above the total is not a discount; it would
+  // print a second, larger figure under the total and confuse the customer.
+  if (values.discountedPrice !== null && values.discountedPrice >= quotationTotal(values.items)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['discountedPrice'],
+      message: 'The discounted price must be below the total',
+    })
+  }
 })
 
 export const quotationSettingsSchema = z.object({

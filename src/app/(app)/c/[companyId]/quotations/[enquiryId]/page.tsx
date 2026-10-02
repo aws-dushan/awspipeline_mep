@@ -75,6 +75,7 @@ export default async function QuotationPage({
       // Starts empty: items are what the quotation is for, so they are added
       // deliberately rather than guessed from the enquiry text.
       items: [],
+      discountedPrice: null,
       scopeOfWork: settings.defaultScope,
       vatNote: settings.vatNote,
       terms: settings.defaultTerms,

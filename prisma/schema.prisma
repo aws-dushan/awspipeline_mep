@@ -579,6 +579,8 @@ model QuotationVersion {
   terms       Json
   currency    String
   totalAmount Decimal @db.Decimal(16, 2)
+  /// The "Special Discounted Price" printed under the total; null for none.
+  discountedPrice Decimal? @db.Decimal(16, 2)
 
   createdById String?
   createdAt   DateTime @default(now())

@@ -20,6 +20,7 @@ import { formatCurrency, parseCalendarDate } from '@/lib/format'
 import { canEditEnquiry } from '@/lib/permissions'
 import {
   buildReference,
+  quotationPayable,
   quotationTotal,
   revisionLabel,
   saveQuotationSchema,
@@ -66,6 +67,7 @@ function versionData(values: QuotationFormValues, currency: string) {
     terms: values.terms as unknown as Prisma.InputJsonValue,
     currency,
     totalAmount: quotationTotal(values.items),
+    discountedPrice: values.discountedPrice,
   }
 }
 
@@ -182,7 +184,8 @@ export async function saveQuotationAction(input: unknown): Promise<ActionResult<
     const values = parsed.data
     const pipeline = await quotedSelection(company.id, enquiry)
     const data = versionData(values, company.currency)
-    const total = data.totalAmount
+    // What the request is quoted at: the discounted price when one is given.
+    const total = quotationPayable(values)
 
     let result: SaveQuotationResult & { previousQuoteValue: number | null }
     try {
